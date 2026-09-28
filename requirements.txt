@@ -1,0 +1,6 @@
+streamlit
+pillow
+numpy
+matplotlib
+streamlit-folium
+folium
