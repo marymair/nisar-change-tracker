@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import io
 from translations import TEXTS
 
-# --- Карта ---
 try:
     from streamlit_folium import st_folium
     import folium
@@ -13,10 +12,8 @@ try:
 except ImportError:
     HAS_MAP = False
 
-# ============ НАСТРОЙКИ СТРАНИЦЫ ============
 st.set_page_config(page_title="NISAR Change Tracker", page_icon="🛰️", layout="wide")
 
-# ============ ВЫБОР ЯЗЫКА ============
 lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
 with st.sidebar:
     lang_name = st.selectbox("🌐 Language / Язык / Idioma / Langue", list(lang_options.keys()))
@@ -24,12 +21,10 @@ with st.sidebar:
 
 T = TEXTS[lang]
 
-# ============ ЗАГОЛОВОК ============
 st.title(T["title"])
 st.caption(T["subtitle"])
 st.warning(T["warning"])
 
-# ============ БОКОВАЯ ПАНЕЛЬ ============
 with st.sidebar:
     st.header(T["settings"])
     change_type = st.selectbox(
@@ -48,7 +43,12 @@ st.subheader(T["map_title"])
 st.caption(T["map_hint"])
 
 if HAS_MAP:
-    m = folium.Map(location=[45.0, 58.5], zoom_start=4, tiles="OpenStreetMap")
+    m = folium.Map(
+        location=[45.0, 58.5],
+        zoom_start=4,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="NASA Earth Imagery / Esri"
+    )
     folium.Marker([45.0, 58.5], tooltip="Aral Sea (example)").add_to(m)
     map_data = st_folium(m, height=400, use_container_width=True, key="world_map")
 
@@ -98,13 +98,12 @@ if f1 and f2:
         st.pyplot(fig)
 
     if show_stats:
-        st.subheader(T["results"])
         mask = np.abs(change) > (threshold / 100.0)
         pct = (mask.sum() / mask.size) * 100
         s1, s2, s3 = st.columns(3)
         s1.metric(T["changed_area"], f"{pct:.1f}%")
         s2.metric(T["mean_change"], f"{change.mean():.3f}")
-        s3.metric(T["max_change"], f"{change.max():.3f}")
+        s3.metric(T["max_change"], f"{change.max:.3f}")
 
     buf = io.BytesIO()
     plt.imsave(buf, change, cmap=palette, format="png")
@@ -113,6 +112,5 @@ if f1 and f2:
 else:
     st.info(T["info"])
 
-# ============ ПОДВАЛ ============
 st.divider()
 st.caption(T["footer"])
