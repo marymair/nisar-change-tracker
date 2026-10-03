@@ -1,13 +1,10 @@
 """
-NISAR Surface Change Tracker — v3.1
+NISAR Surface Change Tracker — v3.2
 - Working translations (EN/RU/ES/FR)
-- Custom NASA-style theme with Space Grotesk
-- 3D globe (pydeck GlobeView)
-- Click anywhere → coordinates
-- Colorful change-type buttons
-- Background changes per change type
-- Help popup
-- Result explanation block
+- Light / Dark theme toggle
+- Help popup moved to top, toggles on/off
+- Fixed full names for quick-select regions
+- Fixed background per change type
 """
 import streamlit as st
 import pydeck as pdk
@@ -28,39 +25,55 @@ st.set_page_config(
 )
 
 # ============================================================
-# INIT STATE
+# SESSION STATE
 # ============================================================
-if "lang" not in st.session_state:
-    st.session_state["lang"] = "en"
-if "change_type" not in st.session_state:
-    st.session_state["change_type"] = "glacier"
-if "selected_lat" not in st.session_state:
-    st.session_state["selected_lat"] = -75.0
-if "selected_lon" not in st.session_state:
-    st.session_state["selected_lon"] = 0.0
-if "show_help" not in st.session_state:
-    st.session_state["show_help"] = False
-if "job_id" not in st.session_state:
-    st.session_state["job_id"] = None
+defaults = {
+    "lang": "en",
+    "change_type": "glacier",
+    "selected_lat": -75.0,
+    "selected_lon": 0.0,
+    "show_help": False,
+    "job_id": None,
+    "theme": "dark",
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 T = TEXTS[st.session_state["lang"]]
 
 # ============================================================
-# CHANGE TYPE CONFIG — colors + backgrounds
+# CHANGE TYPES
 # ============================================================
 CHANGE_TYPES = {
-    "fire":       {"en": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "bg": "#2a0a06", "glow": "rgba(252,61,33,0.5)"},
-    "glacier":    {"en": "❄️", "label": T["change_glacier"],    "color": "#4a9eff", "bg": "#06162a", "glow": "rgba(74,158,255,0.5)"},
-    "flood":      {"en": "🌊", "label": T["change_flood"],      "color": "#1e90ff", "bg": "#061a2a", "glow": "rgba(30,144,255,0.5)"},
-    "desert":     {"en": "🏜️", "label": T["change_desert"],     "color": "#d4a017", "bg": "#2a1f06", "glow": "rgba(212,160,23,0.5)"},
-    "earthquake": {"en": "🌍", "label": T["change_earthquake"], "color": "#9b59b6", "bg": "#1a0a2a", "glow": "rgba(155,89,182,0.5)"},
-    "wetland":    {"en": "🌿", "label": T["change_wetland"],    "color": "#27ae60", "bg": "#062a14", "glow": "rgba(39,174,96,0.5)"},
+    "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef"},
+    "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#3a7bd5", "dark_bg": "#061226", "light_bg": "#eef5ff"},
+    "flood":      {"icon": "🌊", "label": T["change_flood"],      "color": "#1e90ff", "dark_bg": "#061425", "light_bg": "#eaf5ff"},
+    "desert":     {"icon": "🏜️", "label": T["change_desert"],     "color": "#c98a00", "dark_bg": "#1a1506", "light_bg": "#fdf6e3"},
+    "earthquake": {"icon": "🌍", "label": T["change_earthquake"], "color": "#9b59b6", "dark_bg": "#160a22", "light_bg": "#f5eefc"},
+    "wetland":    {"icon": "🌿", "label": T["change_wetland"],    "color": "#27ae60", "dark_bg": "#061a10", "light_bg": "#eafaf1"},
 }
 
 active = CHANGE_TYPES[st.session_state["change_type"]]
-bg_color = active["bg"]
 accent = active["color"]
-glow = active["glow"]
+
+# ============================================================
+# THEME COLORS
+# ============================================================
+if st.session_state["theme"] == "dark":
+    bg_top = active["dark_bg"]
+    bg_bottom = "#0a0e1a"
+    text_main = "#e8ecf5"
+    text_muted = "#8892a6"
+    card_bg = "#131829"
+    card_border = "#1f2640"
+else:
+    bg_top = active["light_bg"]
+    bg_bottom = "#f7f9fc"
+    text_main = "#0a0e1a"
+    text_muted = "#5a6478"
+    card_bg = "#ffffff"
+    card_border = "#d8dfeb"
 
 # ============================================================
 # CUSTOM CSS
@@ -71,12 +84,12 @@ st.markdown(f"""
 
 html, body, [class*="css"] {{
     font-family: 'Space Grotesk', sans-serif;
-    color: #e8ecf5;
+    color: {text_main};
 }}
 
 .stApp {{
-    background: linear-gradient(180deg, {bg_color} 0%, #0a0e1a 100%);
-    transition: background 0.6s ease;
+    background: linear-gradient(180deg, {bg_top} 0%, {bg_bottom} 100%);
+    transition: background 0.5s ease;
 }}
 
 h1 {{
@@ -89,93 +102,92 @@ h1 {{
 }}
 
 h2, h3 {{
-    color: #e8ecf5 !important;
+    color: {text_main} !important;
     font-weight: 600;
-    letter-spacing: -0.01em;
 }}
 
-/* Big header with backdrop */
 .section-header {{
     display: inline-block;
     padding: 8px 18px;
-    background: rgba(74, 158, 255, 0.08);
+    background: {card_bg};
     border-left: 3px solid {accent};
     border-radius: 4px;
     margin: 18px 0 12px 0;
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     font-weight: 600;
-    color: #ffffff;
-    letter-spacing: -0.01em;
+    color: {text_main};
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }}
 
-/* CTA */
 .stButton > button {{
-    background: linear-gradient(90deg, #0B3D91 0%, {accent} 100%);
-    color: white;
-    border: none;
-    padding: 14px 28px;
+    background: {card_bg};
+    color: {text_main};
+    border: 1px solid {card_border};
+    padding: 12px 22px;
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 15px;
+    font-weight: 500;
+    font-size: 14px;
     border-radius: 8px;
-    box-shadow: 0 0 18px {glow};
-    transition: all 0.3s ease;
+    transition: all 0.25s ease;
     width: 100%;
 }}
 .stButton > button:hover {{
-    box-shadow: 0 0 30px {glow};
-    transform: translateY(-2px);
+    border-color: {accent};
+    box-shadow: 0 0 14px {accent}44;
+    transform: translateY(-1px);
 }}
 
-/* Selected change-type button — bright */
 button[kind="primary"] {{
     background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%) !important;
-    box-shadow: 0 0 25px {glow}, 0 0 50px {glow} !important;
-    border: 2px solid #ffffff !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 0 20px {accent}88 !important;
 }}
 
-/* Help panel */
+/* Help panel — top-right, below header */
 .help-box {{
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 340px;
-    background: #131829;
+    background: {card_bg};
     border: 1px solid {accent};
-    border-radius: 12px;
-    padding: 18px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-    z-index: 9999;
-    color: #e8ecf5;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 12px 0 18px 0;
+    color: {text_main};
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }}
 .help-box h4 {{
     color: {accent};
-    margin-top: 0;
+    margin: 0 0 10px 0;
+    font-size: 16px;
 }}
 .help-box pre {{
     white-space: pre-wrap;
     font-family: 'Space Grotesk', sans-serif;
     font-size: 13px;
-    line-height: 1.6;
-    color: #c8d0e0;
+    line-height: 1.7;
+    color: {text_muted};
+    margin: 0;
 }}
 
 .explain-box {{
-    background: rgba(74, 158, 255, 0.06);
+    background: {card_bg};
     border-left: 3px solid {accent};
     border-radius: 6px;
     padding: 16px 20px;
     margin-top: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }}
-
 .explain-box p {{
     margin: 8px 0;
     font-size: 14px;
     line-height: 1.6;
-    color: #c8d0e0;
+    color: {text_muted};
 }}
 .explain-box b {{
     color: {accent};
+}}
+
+p, span, label {{
+    color: {text_main};
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -183,10 +195,18 @@ button[kind="primary"] {{
 # ============================================================
 # HEADER
 # ============================================================
-col_logo, col_lang = st.columns([4, 1])
+col_logo, col_theme, col_lang = st.columns([3, 1, 1])
+
 with col_logo:
     st.markdown("# NISAR Surface Change Tracker")
-    st.markdown(f"<p style='color:#8892a6; margin-top:-12px;'>{T['tagline']}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{text_muted}; margin-top:-12px;'>{T['tagline']}</p>", unsafe_allow_html=True)
+
+with col_theme:
+    theme_icon = "☀️" if st.session_state["theme"] == "dark" else "🌙"
+    if st.button(f"{theme_icon} {'Light' if st.session_state['theme'] == 'dark' else 'Dark'}", key="theme_toggle"):
+        st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+        st.rerun()
+
 with col_lang:
     lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
     lang_name = st.selectbox(
@@ -202,6 +222,24 @@ with col_lang:
         st.rerun()
 
 # ============================================================
+# HELP BUTTON — TOP, toggles on/off
+# ============================================================
+help_col1, help_col2 = st.columns([5, 1])
+with help_col2:
+    help_label = f"❌ {T['help']}" if st.session_state["show_help"] else f"❓ {T['help']}"
+    if st.button(help_label, key="help_btn", use_container_width=True):
+        st.session_state["show_help"] = not st.session_state["show_help"]
+        st.rerun()
+
+if st.session_state["show_help"]:
+    st.markdown(f"""
+    <div class="help-box">
+        <h4>{T['help_title']}</h4>
+        <pre>{T['help_text']}</pre>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================
 # CHANGE-TYPE FILTERS
 # ============================================================
 st.markdown(f'<div class="section-header">{T["type_of_change"]}</div>', unsafe_allow_html=True)
@@ -211,7 +249,7 @@ for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
     with cols[i]:
         is_active = st.session_state["change_type"] == key
         if st.button(
-            f"{cfg['en']} {cfg['label']}",
+            f"{cfg['icon']} {cfg['label']}",
             key=f"btn_{key}",
             use_container_width=True,
             type="primary" if is_active else "secondary",
@@ -229,16 +267,15 @@ st.markdown(
 # GLOBE
 # ============================================================
 st.markdown(f'<div class="section-header">{T["select_location"]}</div>', unsafe_allow_html=True)
-st.markdown(f"<p style='color:#8892a6; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
 
 REFERENCE_POINTS = pd.DataFrame({
     "name": [T["antarctica"], T["himalayas"], T["amazon"], T["california"], T["greenland"]],
     "lat": [-75.0, 28.0, -3.0, 38.0, 72.0],
     "lon": [0.0, 85.0, -60.0, -120.0, -40.0],
-    "color": [[74, 158, 255]] * 5,
+    "color": [[74, 158, 255, 220]] * 5,
 })
 
-# Sample "change hotspots" per type (illustrative)
 HOTSPOTS = {
     "fire":       [(38.0, -120.0), (-3.0, -60.0), (-35.0, 148.0)],
     "glacier":    [(-75.0, 0.0), (72.0, -40.0), (28.0, 85.0)],
@@ -247,14 +284,19 @@ HOTSPOTS = {
     "earthquake": [(38.0, 38.0), (35.0, 140.0), (-30.0, -70.0)],
     "wetland":    [(0.0, 20.0), (-3.0, -60.0), (10.0, 105.0)],
 }
-
 hotspot_data = pd.DataFrame(
-    [{"lat": lat, "lon": lon, "color": [252, 61, 33, 200]} for lat, lon in HOTSPOTS[st.session_state["change_type"]]]
+    [{"lat": la, "lon": lo, "color": [252, 61, 33, 230]} for la, lo in HOTSPOTS[st.session_state["change_type"]]]
+)
+
+# Map style depends on theme
+map_style = (
+    "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+    if st.session_state["theme"] == "dark"
+    else "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
 )
 
 view_state = pdk.ViewState(latitude=20, longitude=0, zoom=1.5, pitch=0)
 
-# Reference layer (blue)
 ref_layer = pdk.Layer(
     "ScatterplotLayer",
     data=REFERENCE_POINTS,
@@ -264,7 +306,6 @@ ref_layer = pdk.Layer(
     pickable=True,
 )
 
-# Hotspot layer (accent color)
 hotspot_layer = pdk.Layer(
     "ScatterplotLayer",
     data=hotspot_data,
@@ -277,13 +318,13 @@ hotspot_layer = pdk.Layer(
 deck = pdk.Deck(
     layers=[ref_layer, hotspot_layer],
     initial_view_state=view_state,
-    map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    map_style=map_style,
     tooltip={"text": "{name}"},
 )
 
 st.pydeck_chart(deck, use_container_width=True)
 
-# Manual coordinate inputs
+# Coordinates
 col1, col2 = st.columns(2)
 with col1:
     lat = st.number_input(T["latitude"], value=st.session_state["selected_lat"], format="%.2f")
@@ -291,7 +332,7 @@ with col2:
     lon = st.number_input(T["longitude"], value=st.session_state["selected_lon"], format="%.2f")
 
 # Quick select
-st.markdown(f"<p style='color:#8892a6; font-size:13px;'>{T['quick_select']}:</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['quick_select']}:</p>", unsafe_allow_html=True)
 qcols = st.columns(5)
 quick = [
     (T["antarctica"], -75.0, 0.0),
@@ -318,7 +359,7 @@ with col_d2:
     end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
 
 # ============================================================
-# ANALYZE BUTTON
+# ANALYZE
 # ============================================================
 st.markdown("---")
 if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn"):
@@ -326,12 +367,7 @@ if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn"
         try:
             resp = requests.post(
                 f"{BACKEND_URL}/analyze",
-                json={
-                    "lat": lat,
-                    "lon": lon,
-                    "start_date": str(start_date),
-                    "end_date": str(end_date),
-                },
+                json={"lat": lat, "lon": lon, "start_date": str(start_date), "end_date": str(end_date)},
                 timeout=30,
             )
             data = resp.json()
@@ -370,7 +406,7 @@ if st.session_state["job_id"]:
             elif status == "error":
                 st.error(f"❌ {d.get('error', 'unknown')}")
                 break
-        except Exception as e:
+        except Exception:
             time.sleep(5)
 
     if status == "done":
@@ -394,10 +430,9 @@ if st.session_state["job_id"]:
                     c3.metric(T["disp_min"], f"{stats.get('disp_min_cm', 0):.2f} cm")
                     c4.metric(T["disp_max"], f"{stats.get('disp_max_cm', 0):.2f} cm")
 
-                # Explanation block
                 st.markdown(f"""
                 <div class="explain-box">
-                    <h4 style="color:{accent};">{T['explain_title']}</h4>
+                    <h4 style="color:{accent}; margin:0 0 10px 0;">{T['explain_title']}</h4>
                     <p><b>Coherence</b> — {T['explain_coherence']}</p>
                     <p><b>Unwrapped Phase</b> — {T['explain_phase']}</p>
                     <p><b>Surface Displacement</b> — {T['explain_displacement']}</p>
@@ -407,28 +442,11 @@ if st.session_state["job_id"]:
             st.error(f"Image fetch failed: {e}")
 
 # ============================================================
-# HELP BUTTON (fixed bottom-right)
-# ============================================================
-help_col1, help_col2 = st.columns([5, 1])
-with help_col2:
-    if st.button(f"❓ {T['help']}", key="help_btn"):
-        st.session_state["show_help"] = not st.session_state["show_help"]
-
-if st.session_state["show_help"]:
-    st.markdown(f"""
-    <div class="help-box">
-        <h4>{T['help_title']}</h4>
-        <pre>{T['help_text']}</pre>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ============================================================
 # FOOTER
 # ============================================================
 st.markdown("---")
 st.markdown(
-    "<p style='text-align:center; color:#8892a6; font-size:12px;'>"
-    "NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata"
-    "</p>",
+    f"<p style='text-align:center; color:{text_muted}; font-size:12px;'>"
+    "NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>",
     unsafe_allow_html=True,
 )
