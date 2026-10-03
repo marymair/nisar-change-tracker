@@ -1,13 +1,15 @@
 """
-NISAR Surface Change Tracker — v3.2
-- Working translations (EN/RU/ES/FR)
-- Light / Dark theme toggle
-- Help popup moved to top, toggles on/off
-- Fixed full names for quick-select regions
-- Fixed background per change type
+NISAR Surface Change Tracker — v3.3
+- Clickable satellite map (folium) with coordinate marker
+- Reverse geocoding via Nominatim (address lookup)
+- Check for NISAR data availability
+- Theme toggle (light/dark)
+- Help popup at top
 """
 import streamlit as st
-import pydeck as pdk
+import folium
+from streamlit_folium import st_folium
+from geopy.geocoders import Nominatim
 import pandas as pd
 import requests
 import time
@@ -32,9 +34,12 @@ defaults = {
     "change_type": "glacier",
     "selected_lat": -75.0,
     "selected_lon": 0.0,
+    "selected_address": "",
     "show_help": False,
     "job_id": None,
     "theme": "dark",
+    "map_center": [-30, 0],
+    "map_zoom": 2,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -58,7 +63,7 @@ active = CHANGE_TYPES[st.session_state["change_type"]]
 accent = active["color"]
 
 # ============================================================
-# THEME COLORS
+# THEME
 # ============================================================
 if st.session_state["theme"] == "dark":
     bg_top = active["dark_bg"]
@@ -76,7 +81,7 @@ else:
     card_border = "#d8dfeb"
 
 # ============================================================
-# CUSTOM CSS
+# CSS
 # ============================================================
 st.markdown(f"""
 <style>
@@ -86,25 +91,18 @@ html, body, [class*="css"] {{
     font-family: 'Space Grotesk', sans-serif;
     color: {text_main};
 }}
-
 .stApp {{
     background: linear-gradient(180deg, {bg_top} 0%, {bg_bottom} 100%);
     transition: background 0.5s ease;
 }}
-
 h1 {{
     background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     font-weight: 700;
     font-size: 2.6rem !important;
-    letter-spacing: -0.02em;
 }}
-
-h2, h3 {{
-    color: {text_main} !important;
-    font-weight: 600;
-}}
+h2, h3 {{ color: {text_main} !important; font-weight: 600; }}
 
 .section-header {{
     display: inline-block;
@@ -118,7 +116,6 @@ h2, h3 {{
     color: {text_main};
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }}
-
 .stButton > button {{
     background: {card_bg};
     color: {text_main};
@@ -136,15 +133,12 @@ h2, h3 {{
     box-shadow: 0 0 14px {accent}44;
     transform: translateY(-1px);
 }}
-
 button[kind="primary"] {{
     background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%) !important;
     color: white !important;
     border: none !important;
     box-shadow: 0 0 20px {accent}88 !important;
 }}
-
-/* Help panel — top-right, below header */
 .help-box {{
     background: {card_bg};
     border: 1px solid {accent};
@@ -154,11 +148,7 @@ button[kind="primary"] {{
     color: {text_main};
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }}
-.help-box h4 {{
-    color: {accent};
-    margin: 0 0 10px 0;
-    font-size: 16px;
-}}
+.help-box h4 {{ color: {accent}; margin: 0 0 10px 0; font-size: 16px; }}
 .help-box pre {{
     white-space: pre-wrap;
     font-family: 'Space Grotesk', sans-serif;
@@ -167,7 +157,6 @@ button[kind="primary"] {{
     color: {text_muted};
     margin: 0;
 }}
-
 .explain-box {{
     background: {card_bg};
     border-left: 3px solid {accent};
@@ -176,18 +165,16 @@ button[kind="primary"] {{
     margin-top: 20px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
 }}
-.explain-box p {{
-    margin: 8px 0;
-    font-size: 14px;
-    line-height: 1.6;
-    color: {text_muted};
-}}
-.explain-box b {{
-    color: {accent};
-}}
-
-p, span, label {{
+.explain-box p {{ margin: 8px 0; font-size: 14px; line-height: 1.6; color: {text_muted}; }}
+.explain-box b {{ color: {accent}; }}
+.info-box {{
+    background: {card_bg};
+    border-left: 3px solid {accent};
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 10px 0;
     color: {text_main};
+    font-size: 14px;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -203,18 +190,17 @@ with col_logo:
 
 with col_theme:
     theme_icon = "☀️" if st.session_state["theme"] == "dark" else "🌙"
-    if st.button(f"{theme_icon} {'Light' if st.session_state['theme'] == 'dark' else 'Dark'}", key="theme_toggle"):
+    label = "Light" if st.session_state["theme"] == "dark" else "Dark"
+    if st.button(f"{theme_icon} {label}", key="theme_toggle"):
         st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
         st.rerun()
 
 with col_lang:
     lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
     lang_name = st.selectbox(
-        "Language",
-        list(lang_options.keys()),
+        "Language", list(lang_options.keys()),
         index=list(lang_options.values()).index(st.session_state["lang"]),
-        label_visibility="collapsed",
-        key="lang_selector",
+        label_visibility="collapsed", key="lang_selector",
     )
     new_lang = lang_options[lang_name]
     if new_lang != st.session_state["lang"]:
@@ -222,7 +208,7 @@ with col_lang:
         st.rerun()
 
 # ============================================================
-# HELP BUTTON — TOP, toggles on/off
+# HELP TOGGLE
 # ============================================================
 help_col1, help_col2 = st.columns([5, 1])
 with help_col2:
@@ -257,96 +243,127 @@ for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
             st.session_state["change_type"] = key
             st.rerun()
 
-st.markdown(
-    f"<p style='color:{accent}; text-align:center; font-size:14px;'>"
-    f"{T['selected']}: <b>{active['label']}</b></p>",
-    unsafe_allow_html=True,
-)
-
 # ============================================================
-# GLOBE
+# INTERACTIVE MAP
 # ============================================================
 st.markdown(f'<div class="section-header">{T["select_location"]}</div>', unsafe_allow_html=True)
 st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
 
-REFERENCE_POINTS = pd.DataFrame({
-    "name": [T["antarctica"], T["himalayas"], T["amazon"], T["california"], T["greenland"]],
-    "lat": [-75.0, 28.0, -3.0, 38.0, 72.0],
-    "lon": [0.0, 85.0, -60.0, -120.0, -40.0],
-    "color": [[74, 158, 255, 220]] * 5,
-})
-
-HOTSPOTS = {
-    "fire":       [(38.0, -120.0), (-3.0, -60.0), (-35.0, 148.0)],
-    "glacier":    [(-75.0, 0.0), (72.0, -40.0), (28.0, 85.0)],
-    "flood":      [(25.0, 90.0), (-3.0, -60.0), (14.0, 100.0)],
-    "desert":     [(23.0, 10.0), (-25.0, 130.0), (30.0, 60.0)],
-    "earthquake": [(38.0, 38.0), (35.0, 140.0), (-30.0, -70.0)],
-    "wetland":    [(0.0, 20.0), (-3.0, -60.0), (10.0, 105.0)],
-}
-hotspot_data = pd.DataFrame(
-    [{"lat": la, "lon": lo, "color": [252, 61, 33, 230]} for la, lo in HOTSPOTS[st.session_state["change_type"]]]
-)
-
-# Map style depends on theme
-map_style = (
-    "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-    if st.session_state["theme"] == "dark"
-    else "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-)
-
-view_state = pdk.ViewState(latitude=20, longitude=0, zoom=1.5, pitch=0)
-
-ref_layer = pdk.Layer(
-    "ScatterplotLayer",
-    data=REFERENCE_POINTS,
-    get_position=["lon", "lat"],
-    get_color="color",
-    get_radius=150000,
-    pickable=True,
-)
-
-hotspot_layer = pdk.Layer(
-    "ScatterplotLayer",
-    data=hotspot_data,
-    get_position=["lon", "lat"],
-    get_color="color",
-    get_radius=120000,
-    pickable=True,
-)
-
-deck = pdk.Deck(
-    layers=[ref_layer, hotspot_layer],
-    initial_view_state=view_state,
-    map_style=map_style,
-    tooltip={"text": "{name}"},
-)
-
-st.pydeck_chart(deck, use_container_width=True)
-
-# Coordinates
-col1, col2 = st.columns(2)
-with col1:
-    lat = st.number_input(T["latitude"], value=st.session_state["selected_lat"], format="%.2f")
-with col2:
-    lon = st.number_input(T["longitude"], value=st.session_state["selected_lon"], format="%.2f")
-
-# Quick select
-st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['quick_select']}:</p>", unsafe_allow_html=True)
-qcols = st.columns(5)
-quick = [
+# NISAR reference regions (where data exists)
+NISAR_REGIONS = [
     (T["antarctica"], -75.0, 0.0),
     (T["himalayas"], 28.0, 85.0),
     (T["amazon"], -3.0, -60.0),
     (T["california"], 38.0, -120.0),
     (T["greenland"], 72.0, -40.0),
 ]
-for i, (name, qlat, qlon) in enumerate(quick):
+
+# Build folium map
+if st.session_state["theme"] == "dark":
+    tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    attr = "NASA Earth Imagery"
+else:
+    tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+    attr = "NASA Earth Imagery"
+
+m = folium.Map(
+    location=st.session_state["map_center"],
+    zoom_start=st.session_state["map_zoom"],
+    tiles=tiles,
+    attr=attr,
+    control_scale=True,
+)
+
+# Add NISAR reference markers
+for name, lat, lon in NISAR_REGIONS:
+    folium.CircleMarker(
+        location=[lat, lon],
+        radius=6,
+        color="#4a9eff",
+        fill=True,
+        fill_color="#4a9eff",
+        fill_opacity=0.7,
+        tooltip=f"<b>{name}</b><br>NISAR data available",
+    ).add_to(m)
+
+# Add the selected marker (bigger, accent-colored)
+folium.Marker(
+    location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
+    popup=f"Selected: {st.session_state['selected_lat']:.2f}, {st.session_state['selected_lon']:.2f}",
+    tooltip="Selected location",
+    icon=folium.Icon(color="red", icon="crosshair", prefix="fa"),
+).add_to(m)
+
+# Render map and capture click
+map_data = st_folium(m, height=500, use_container_width=True, key="nisar_map")
+
+# Handle click
+if map_data and map_data.get("last_clicked"):
+    new_lat = map_data["last_clicked"]["lat"]
+    new_lon = map_data["last_clicked"]["lng"]
+    if abs(new_lat - st.session_state["selected_lat"]) > 0.001 or abs(new_lon - st.session_state["selected_lon"]) > 0.001:
+        st.session_state["selected_lat"] = new_lat
+        st.session_state["selected_lon"] = new_lon
+        # Reverse geocode
+        try:
+            geolocator = Nominatim(user_agent="nisar_tracker")
+            location = geolocator.reverse(f"{new_lat}, {new_lon}", timeout=5)
+            if location:
+                st.session_state["selected_address"] = location.address
+            else:
+                st.session_state["selected_address"] = "Ocean / remote area"
+        except Exception:
+            st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
+        st.rerun()
+
+# Show selected coordinates and address
+st.markdown(f"""
+<div class="info-box">
+    <b>📍 {T['selected']}:</b> {st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}
+    {"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}
+</div>
+""", unsafe_allow_html=True)
+
+# Quick select buttons
+st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['quick_select']}:</p>", unsafe_allow_html=True)
+qcols = st.columns(5)
+for i, (name, qlat, qlon) in enumerate(NISAR_REGIONS):
     with qcols[i]:
         if st.button(name, key=f"quick_{i}", use_container_width=True):
             st.session_state["selected_lat"] = qlat
             st.session_state["selected_lon"] = qlon
+            st.session_state["map_center"] = [qlat, qlon]
+            st.session_state["map_zoom"] = 4
+            try:
+                geolocator = Nominatim(user_agent="nisar_tracker")
+                loc = geolocator.reverse(f"{qlat}, {qlon}", timeout=5)
+                st.session_state["selected_address"] = loc.address if loc else name
+            except Exception:
+                st.session_state["selected_address"] = name
             st.rerun()
+
+# ============================================================
+# DATA AVAILABILITY CHECK
+# ============================================================
+if st.button(f"🔍 Check NISAR data availability", key="check_btn", use_container_width=True):
+    with st.spinner("Checking NASA Earthdata..."):
+        try:
+            r = requests.post(
+                f"{BACKEND_URL}/search",
+                json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
+                      "start_date": "2026-09-01", "end_date": "2026-09-30"},
+                timeout=60,
+            )
+            d = r.json()
+            count = d.get("count", 0)
+            if count == 0:
+                st.warning(f"⚠️ {T['no_data']}")
+            else:
+                st.success(f"✅ Found {count} NISAR scenes for this location")
+                for s in d.get("scenes", [])[:5]:
+                    st.markdown(f"- `{s['name']}` — {s.get('level', '?')} — {s.get('date', '?')}")
+        except Exception as e:
+            st.error(f"❌ {e}")
 
 # ============================================================
 # DATE RANGE
@@ -362,12 +379,17 @@ with col_d2:
 # ANALYZE
 # ============================================================
 st.markdown("---")
-if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn"):
+if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
     with st.spinner(f"🔎 {T['searching']}..."):
         try:
             resp = requests.post(
                 f"{BACKEND_URL}/analyze",
-                json={"lat": lat, "lon": lon, "start_date": str(start_date), "end_date": str(end_date)},
+                json={
+                    "lat": st.session_state["selected_lat"],
+                    "lon": st.session_state["selected_lon"],
+                    "start_date": str(start_date),
+                    "end_date": str(end_date),
+                },
                 timeout=30,
             )
             data = resp.json()
@@ -390,6 +412,7 @@ if st.session_state["job_id"]:
     status_text = st.empty()
 
     status = "processing"
+    d = {}
     for i in range(60):
         try:
             r = requests.get(f"{BACKEND_URL}/status/{job_id}", timeout=10)
@@ -416,12 +439,8 @@ if st.session_state["job_id"]:
             if img_resp.status_code == 200:
                 img = Image.open(BytesIO(img_resp.content))
                 st.image(img, use_container_width=True)
-                st.download_button(
-                    f"⬇  {T['download']}",
-                    data=img_resp.content,
-                    file_name=f"nisar_{job_id}.png",
-                    mime="image/png",
-                )
+                st.download_button(f"⬇  {T['download']}", data=img_resp.content,
+                                   file_name=f"nisar_{job_id}.png", mime="image/png")
                 stats = d.get("stats", {})
                 if stats:
                     c1, c2, c3, c4 = st.columns(4)
