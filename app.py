@@ -1,6 +1,6 @@
 """
-NISAR Surface Change Tracker — v4.0
-Landing page + main app + backend integration.
+NISAR Surface Change Tracker — v4.1
+Full translation support on landing + main app.
 """
 import streamlit as st
 import folium
@@ -15,15 +15,11 @@ from translations import TEXTS
 
 BACKEND_URL = "https://nisar-backend-production-feb6.up.railway.app"
 
-st.set_page_config(
-    page_title="NISAR Surface Change Tracker",
-    page_icon="🛰️",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️",
+                   layout="wide", initial_sidebar_state="collapsed")
 
 # ============================================================
-# SESSION STATE
+# SESSION STATE — set BEFORE any T usage
 # ============================================================
 defaults = {
     "lang": "en",
@@ -45,6 +41,23 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# ============================================================
+# LANGUAGE SELECTOR (must run BEFORE T is computed)
+# ============================================================
+lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
+lang_name = st.selectbox(
+    "🌐 Language",
+    list(lang_options.keys()),
+    index=list(lang_options.values()).index(st.session_state["lang"]),
+    key="global_lang_selector",
+    label_visibility="collapsed",
+)
+new_lang = lang_options[lang_name]
+if new_lang != st.session_state["lang"]:
+    st.session_state["lang"] = new_lang
+    st.rerun()
+
+# Now T reflects the selected language
 T = TEXTS[st.session_state["lang"]]
 
 # ============================================================
@@ -135,149 +148,85 @@ button[kind="primary"] {{ background: linear-gradient(90deg, {accent} 0%, #FC3D2
 # LANDING PAGE
 # ============================================================
 if not st.session_state["onboarded"]:
-    lc1, lc2, lc3 = st.columns([4, 1, 1])
-    with lc2:
+    c1, c2 = st.columns([6, 1])
+    with c2:
         theme_icon = "☀️ Light" if st.session_state["theme"] == "dark" else "🌙 Dark"
         if st.button(theme_icon, key="landing_theme"):
             st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
             st.rerun()
-    with lc3:
-        lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
-        lang_name = st.selectbox("Language", list(lang_options.keys()),
-            index=list(lang_options.values()).index(st.session_state["lang"]),
-            label_visibility="collapsed", key="landing_lang")
-        new_lang = lang_options[lang_name]
-        if new_lang != st.session_state["lang"]:
-            st.session_state["lang"] = new_lang
-            st.rerun()
 
-    st.markdown('<span class="hero-badge">NASA SPACE APPS CHALLENGE 2026</span>', unsafe_allow_html=True)
+    st.markdown(f'<span class="hero-badge">{T["hero_badge"]}</span>', unsafe_allow_html=True)
     st.markdown("# NISAR Surface Change Tracker")
-    st.markdown("""
-    <p class="hero-sub">
-    Track and visualize surface changes of our planet using real radar data from the
-    NASA-ISRO Synthetic Aperture Radar (NISAR) mission. Pick a location, choose a type
-    of change, and get a real interferogram — computed in the cloud, straight from
-    NASA Earthdata.
-    </p>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<p class="hero-sub">{T["hero_sub"]}</p>', unsafe_allow_html=True)
 
     st.markdown("---")
 
     f1, f2, f3 = st.columns(3)
     with f1:
-        st.markdown("""
-        <div class="landing-card">
-            <h3>📡 Real NISAR Data</h3>
-            <p>Every analysis downloads an actual NISAR L1 GUNW scene — about 800 MB —
-            directly from the NASA ASF Data Access. No simulations, no pre-baked images.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="landing-card"><h3>📡 {T["feature1_title"]}</h3><p>{T["feature1_text"]}</p></div>', unsafe_allow_html=True)
     with f2:
-        st.markdown("""
-        <div class="landing-card">
-            <h3>🌍 Global Coverage</h3>
-            <p>Click any point on the map. If NISAR has captured it, we process it.
-            Six change types: wildfires, glaciers, floods, desertification, earthquakes, wetlands.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="landing-card"><h3>🌍 {T["feature2_title"]}</h3><p>{T["feature2_text"]}</p></div>', unsafe_allow_html=True)
     with f3:
-        st.markdown("""
-        <div class="landing-card">
-            <h3>🔬 Scientific Pipeline</h3>
-            <p>We read the raw HDF5, extract unwrapped phase and coherence, compute InSAR
-            displacement in centimeters, and render the interferogram — all in your browser.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="landing-card"><h3>🔬 {T["feature3_title"]}</h3><p>{T["feature3_text"]}</p></div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("## Method")
-    st.markdown('<p class="hero-sub">Our pipeline uses the official NASA ASF API, OAuth 2.0 authentication, and standard InSAR mathematics.</p>', unsafe_allow_html=True)
+    st.markdown(f'## {T["method_title"]}')
+    st.markdown(f'<p class="hero-sub">{T["method_sub"]}</p>', unsafe_allow_html=True)
 
     steps = [
-        ("Search", "Query the NASA ASF Data Access for NISAR scenes intersecting your coordinates and date range."),
-        ("Authenticate", "Log in to NASA Earthdata via OAuth 2.0. Your credentials never leave your session."),
-        ("Download", "Fetch the full GUNW product — typically 500–1000 MB — from the NISAR data pool."),
-        ("Process", "Read the HDF5 file with h5py, extract <b>unwrappedPhase</b> and <b>coherenceMagnitude</b>."),
-        ("Render", "Convert phase to surface displacement (L-band, λ=24 cm), downsample for performance, and render a 3-panel PNG."),
+        (T["step1_title"], T["step1_text"]),
+        (T["step2_title"], T["step2_text"]),
+        (T["step3_title"], T["step3_text"]),
+        (T["step4_title"], T["step4_text"]),
+        (T["step5_title"], T["step5_text"]),
     ]
     for i, (title, desc) in enumerate(steps, 1):
-        st.markdown(f"""
-        <div class="pipeline-step">
-            <div class="pipeline-step-num">{i}</div>
-            <div class="pipeline-step-text"><b>{title}</b> — {desc}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="pipeline-step"><div class="pipeline-step-num">{i}</div><div class="pipeline-step-text"><b>{title}</b> — {desc}</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("## Validation")
-    st.markdown('<p class="hero-sub">Verified against a real NISAR GUNW scene over Antarctica, September 13, 2026.</p>', unsafe_allow_html=True)
+    st.markdown(f'## {T["validation_title"]}')
+    st.markdown(f'<p class="hero-sub">{T["validation_sub"]}</p>', unsafe_allow_html=True)
 
     v1, v2, v3, v4 = st.columns(4)
-    with v1:
-        st.metric("Phase range", "−26.75 … +27.53 rad")
-    with v2:
-        st.metric("Displacement", "−51.09 … +52.57 cm")
-    with v3:
-        st.metric("Coherence", "0.000 … 0.939")
-    with v4:
-        st.metric("Scene size", "4185 × 4293 px")
+    with v1: st.metric(T["validation_phase"], "−26.75 … +27.53 rad")
+    with v2: st.metric(T["validation_disp"], "−51.09 … +52.57 cm")
+    with v3: st.metric(T["validation_coh"], "0.000 … 0.939")
+    with v4: st.metric(T["validation_size"], "4185 × 4293 px")
 
-    st.markdown('<p style="color:gray; font-size:13px; margin-top:12px;">Values match the product specification: <b>NASA NISAR L1 RUNW Product Spec, D-102271</b>.</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{text_muted}; font-size:13px; margin-top:12px;">{T["validation_note"]}</p>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("## Who is this for?")
+    st.markdown(f'## {T["impact_title"]}')
     i1, i2, i3, i4 = st.columns(4)
-    with i1:
-        st.markdown('<div class="impact-box"><h4>Climate scientists</h4><p>Monitor glacier retreat and permafrost thaw over years and decades.</p></div>', unsafe_allow_html=True)
-    with i2:
-        st.markdown('<div class="impact-box"><h4>Geologists</h4><p>Detect millimeter-scale ground deformation before and after earthquakes.</p></div>', unsafe_allow_html=True)
-    with i3:
-        st.markdown('<div class="impact-box"><h4>Disaster response</h4><p>Rapid assessment of flood extent and wildfire damage, day or night, through clouds.</p></div>', unsafe_allow_html=True)
-    with i4:
-        st.markdown('<div class="impact-box"><h4>Ecologists</h4><p>Track wetland loss, desertification and land-cover change across continents.</p></div>', unsafe_allow_html=True)
+    with i1: st.markdown(f'<div class="impact-box"><h4>{T["impact1_title"]}</h4><p>{T["impact1_text"]}</p></div>', unsafe_allow_html=True)
+    with i2: st.markdown(f'<div class="impact-box"><h4>{T["impact2_title"]}</h4><p>{T["impact2_text"]}</p></div>', unsafe_allow_html=True)
+    with i3: st.markdown(f'<div class="impact-box"><h4>{T["impact3_title"]}</h4><p>{T["impact3_text"]}</p></div>', unsafe_allow_html=True)
+    with i4: st.markdown(f'<div class="impact-box"><h4>{T["impact4_title"]}</h4><p>{T["impact4_text"]}</p></div>', unsafe_allow_html=True)
 
     st.markdown("---")
     cta1, cta2, cta3 = st.columns([1, 2, 1])
     with cta2:
-        if st.button("▶  Continue to the app", use_container_width=True, type="primary", key="cta_continue"):
+        if st.button(f"▶  {T['continue']}", use_container_width=True, type="primary", key="cta_continue"):
             st.session_state["onboarded"] = True
             st.rerun()
 
     st.markdown("---")
-    st.markdown("""
-    <div class="footer-links" style="text-align:center;">
-        Built for <b>NASA Space Apps Challenge 2026</b><br>
-        Data: <a href="https://search.earthdata.nasa.gov" target="_blank">NASA Earthdata</a> ·
-        <a href="https://search.asf.alaska.edu" target="_blank">ASF DAAC</a> ·
-        <a href="https://nisar.jpl.nasa.gov" target="_blank">NISAR Mission</a><br>
-        Radar data © NASA / ISRO · Product spec D-102271
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="footer-links" style="text-align:center;">{T["footer_built"]}<br>{T["footer_data"]}<br>{T["footer_credit"]}</div>', unsafe_allow_html=True)
 
     st.stop()
 
 # ============================================================
 # MAIN APP
 # ============================================================
-back_col1, back_col2, back_col3, back_col4 = st.columns([1, 4, 1, 1])
-with back_col1:
-    if st.button("← Back", key="back_to_landing"):
+bc1, bc2, bc3 = st.columns([1, 5, 1])
+with bc1:
+    if st.button(f"← {T['back']}", key="back_to_landing"):
         st.session_state["onboarded"] = False
         st.rerun()
-with back_col3:
+with bc3:
     theme_icon = "☀️" if st.session_state["theme"] == "dark" else "🌙"
     if st.button(theme_icon, key="app_theme"):
         st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
-        st.rerun()
-with back_col4:
-    lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
-    lang_name = st.selectbox("Language", list(lang_options.keys()),
-        index=list(lang_options.values()).index(st.session_state["lang"]),
-        label_visibility="collapsed", key="app_lang")
-    new_lang = lang_options[lang_name]
-    if new_lang != st.session_state["lang"]:
-        st.session_state["lang"] = new_lang
         st.rerun()
 
 col_logo, col_help = st.columns([5, 1])
@@ -291,14 +240,8 @@ with col_help:
         st.rerun()
 
 if st.session_state["show_help"]:
-    st.markdown(f"""
-    <div class="help-box">
-        <h4>{T['help_title']}</h4>
-        <pre>{T['help_text']}</pre>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="help-box"><h4>{T["help_title"]}</h4><pre>{T["help_text"]}</pre></div>', unsafe_allow_html=True)
 
-# STEP 1
 st.markdown(f'<div class="section-header">1. {T["type_of_change"]}</div>', unsafe_allow_html=True)
 cols = st.columns(6)
 for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
@@ -317,10 +260,9 @@ if st.session_state["change_type"]:
                 f"{T['selected']}: <span class='type-badge'>{active['icon']} {active['label']}</span></p>",
                 unsafe_allow_html=True)
 else:
-    st.info("Выберите тип изменения, чтобы продолжить")
+    st.info(T["choose_type_to_continue"])
     st.stop()
 
-# STEP 2
 st.markdown(f'<div class="section-header">2. {T["select_location"]}</div>', unsafe_allow_html=True)
 st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
 
@@ -335,8 +277,7 @@ for name, hlat, hlon, intensity in hotspots:
     folium.CircleMarker(location=[hlat, hlon], radius=radius,
         color=active["map_color"], fill=True, fill_color=active["map_color"],
         fill_opacity=0.65, weight=2,
-        tooltip=f"<b>{name}</b><br>{active['label']}<br>Intensity: {int(intensity*100)}%",
-    ).add_to(m)
+        tooltip=f"<b>{name}</b><br>{active['label']}<br>Intensity: {int(intensity*100)}%").add_to(m)
 
 folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
     tooltip="Selected", icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
@@ -359,37 +300,22 @@ if map_data and map_data.get("last_clicked"):
             st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
         st.rerun()
 
-st.markdown(f"""
-<div class="info-box">
-    <b>📍 {T['selected']}:</b> {st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}
-    {"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f'<div class="info-box"><b>📍 {T["selected"]}:</b> {st.session_state["selected_lat"]:.3f}, {st.session_state["selected_lon"]:.3f}{"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}</div>', unsafe_allow_html=True)
 
-st.markdown(f"<p style='color:{accent}; font-weight:600; margin-top:12px;'>"
-            f"📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='color:{accent}; font-weight:600; margin-top:12px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
 legend_cols = st.columns(len(hotspots))
 for i, (name, hlat, hlon, intensity) in enumerate(hotspots):
     with legend_cols[i]:
-        st.markdown(f"""
-        <div style="background:{card_bg}; border-left:3px solid {active['map_color']}; border-radius:6px; padding:8px 12px; margin:4px 0; font-size:12px;">
-            <b style="color:{active['map_color']};">● {name}</b><br>
-            <span style="color:{text_muted};">Intensity: {int(intensity*100)}%</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div style="background:{card_bg}; border-left:3px solid {active["map_color"]}; border-radius:6px; padding:8px 12px; margin:4px 0; font-size:12px;"><b style="color:{active["map_color"]};">● {name}</b><br><span style="color:{text_muted};">Intensity: {int(intensity*100)}%</span></div>', unsafe_allow_html=True)
 
-# STEP 3
 st.markdown(f'<div class="section-header">3. {T["date_range"]}</div>', unsafe_allow_html=True)
 col_d1, col_d2 = st.columns(2)
-with col_d1:
-    start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
-with col_d2:
-    end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
+with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
+with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
 
-# STEP 4
 st.markdown(f'<div class="section-header">4. {T["check_avail"]}</div>', unsafe_allow_html=True)
 if st.button(f"🔍 {T['check_avail']}", key="check_btn", use_container_width=True):
-    with st.spinner("Checking NASA Earthdata..."):
+    with st.spinner(T["checking_earthdata"]):
         try:
             r = requests.post(f"{BACKEND_URL}/search",
                 json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
@@ -406,14 +332,9 @@ if st.session_state["availability_checked"]:
     if count == 0:
         st.warning(f"⚠️ {T['no_data']}")
     else:
-        st.success(f"✅ {count} NISAR scenes found:")
+        st.success(f"✅ {count} {T['scenes_found']}:")
         for s in st.session_state["availability_scenes"][:10]:
-            st.markdown(f"""
-            <div class="scene-row">
-                <b>{s.get('level', '?')}</b> · {s.get('name', 'unknown')}<br>
-                <span style='color:{text_muted};'>Date: {s.get('date', 'unknown')}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="scene-row"><b>{s.get("level", "?")}</b> · {s.get("name", "unknown")}<br><span style="color:{text_muted};">Date: {s.get("date", "unknown")}</span></div>', unsafe_allow_html=True)
 
         st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
         if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
@@ -431,15 +352,11 @@ if st.session_state["availability_checked"]:
                 except Exception as e:
                     st.error(f"❌ Backend: {e}")
 
-# ============================================================
-# RESULT
-# ============================================================
 if st.session_state["job_id"]:
     job_id = st.session_state["job_id"]
     st.markdown(f'<div class="section-header">{T["processing"]}...</div>', unsafe_allow_html=True)
     progress_bar = st.progress(0)
     status_text = st.empty()
-
     status = "processing"
     d = {}
     for i in range(60):
@@ -464,9 +381,7 @@ if st.session_state["job_id"]:
     if status == "done":
         st.markdown(f'<div class="section-header">{T["result"]}</div>', unsafe_allow_html=True)
         if st.session_state["change_type"]:
-            st.markdown(f"<p style='font-size:15px;'><b>{T['type_of_change']}:</b> "
-                        f"<span class='type-badge'>{active['icon']} {active['label']}</span></p>",
-                        unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:15px;'><b>{T['type_of_change']}:</b> <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
         try:
             img_resp = requests.get(f"{BACKEND_URL}/image/{job_id}", timeout=30)
             if img_resp.status_code == 200:
@@ -481,22 +396,9 @@ if st.session_state["job_id"]:
                     c2.metric(T["phase_max"], f"{stats.get('phase_max', 0):.2f} rad")
                     c3.metric(T["disp_min"], f"{stats.get('disp_min_cm', 0):.2f} cm")
                     c4.metric(T["disp_max"], f"{stats.get('disp_max_cm', 0):.2f} cm")
-
-                st.markdown(f"""
-                <div class="explain-box">
-                    <h4 style="color:{accent}; margin:0 0 10px 0;">{T['explain_title']}</h4>
-                    <p><b>Coherence</b> — {T['explain_coherence']}</p>
-                    <p><b>Unwrapped Phase</b> — {T['explain_phase']}</p>
-                    <p><b>Surface Displacement</b> — {T['explain_displacement']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f'<div class="explain-box"><h4 style="color:{accent}; margin:0 0 10px 0;">{T["explain_title"]}</h4><p><b>Coherence</b> — {T["explain_coherence"]}</p><p><b>Unwrapped Phase</b> — {T["explain_phase"]}</p><p><b>Surface Displacement</b> — {T["explain_displacement"]}</p></div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Image fetch failed: {e}")
 
-# FOOTER
 st.markdown("---")
-st.markdown(
-    f"<p style='text-align:center; color:{text_muted}; font-size:12px;'>"
-    "NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>",
-    unsafe_allow_html=True,
-)
+st.markdown(f'<p style="text-align:center; color:{text_muted}; font-size:12px;">NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>', unsafe_allow_html=True)
