@@ -426,4 +426,105 @@ if st.session_state["availability_checked"]:
     if count == 0:
         st.warning(f"⚠️ {T['no_data']}")
     else:
-        st.success(f"✅ {count} {T['scenes
+        st.success(f"✅ {count} {T['scenes_found']}")
+        for i, s in enumerate(st.session_state["availability_scenes"][:20]):
+            scene_name = s.get("name", "unknown")
+            level = s.get("level", "?")
+            date = s.get("date", "unknown")
+            slat = s.get("lat", st.session_state["selected_lat"])
+            slon = s.get("lon", st.session_state["selected_lon"])
+            is_selected = st.session_state.get("scene_name") == scene_name
+            btn_label = f"{'🎯 ' if is_selected else ''}{level} · {scene_name[:60]}... · {date}"
+            st.button(btn_label, key=f"scene_{i}", use_container_width=True,
+                      type="primary" if is_selected else "secondary",
+                      on_click=select_scene, args=(scene_name, slat, slon))
+
+        st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
+        if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
+            with st.spinner(f"🔎 {T['searching']}..."):
+                try:
+                    resp = requests.post(f"{BACKEND_URL}/analyze",
+                        json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
+                              "start_date": str(start_date), "end_date": str(end_date)}, timeout=30)
+                    data = resp.json()
+                    if "error" in data:
+                        st.error(f"❌ {data['error']}")
+                    else:
+                        st.session_state["job_id"] = data.get("job_id")
+                        st.session_state["job_scene_name"] = data.get("scene_name", "")
+                        st.success("✅ Analysis started — downloading NISAR scene from NASA ASF...")
+                except Exception as e:
+                    st.error(f"❌ Backend: {e}")
+
+# RESULT
+if st.session_state["job_id"]:
+    job_id = st.session_state["job_id"]
+    scene_downloaded = st.session_state.get("job_scene_name", "")
+
+    # Header changes based on status
+    status_placeholder = st.empty()
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    status = "processing"
+    d = {}
+    for i in range(60):
+        try:
+            r = requests.get(f"{BACKEND_URL}/status/{job_id}", timeout=10)
+            d = r.json()
+            status = d.get("status", "unknown")
+            if status == "processing":
+                status_placeholder.markdown(f'<div class="section-header">⏳ Processing NISAR data...</div>', unsafe_allow_html=True)
+                progress_bar.progress(min((i + 1) * 2, 95))
+                status_text.text(f"⏳ Downloading from NASA ASF...")
+                time.sleep(5)
+            elif status == "done":
+                status_placeholder.markdown(f'<div class="section-header">✅ Analysis Complete</div>', unsafe_allow_html=True)
+                progress_bar.progress(100)
+                status_text.text("")
+                break
+            elif status == "error":
+                status_placeholder.markdown(f'<div class="section-header">❌ Error</div>', unsafe_allow_html=True)
+                st.error(f"❌ {d.get('error', 'unknown')}")
+                break
+        except Exception:
+            time.sleep(5)
+
+    if status == "done":
+        # DATA PROVENANCE BLOCK
+        st.markdown(f'''
+        <div class="provenance-box">
+        <b>✅ Data provenance</b><br>
+        <b>Source:</b> NASA / ISRO NISAR mission<br>
+        <b>Provider:</b> Alaska Satellite Facility (ASF) DAAC · ASF API v2<br>
+        <b>Scene:</b> {scene_downloaded}<br>
+        <b>Product type:</b> L1 / L2 GUNW (Geocoded Unwrapped Interferogram)<br>
+        <b>Processing:</b> NASA JPL · NISAR Product Spec D-102271<br>
+        <b>Computed on:</b> this session, real time — no pre-baked imagery
+        </div>
+        ''', unsafe_allow_html=True)
+
+        st.markdown(f'<div class="section-header">{T["result"]}</div>', unsafe_allow_html=True)
+        if st.session_state["change_type"]:
+            st.markdown(f"<p style='font-size:15px;'><b>{T['type_of_change']}:</b> <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
+
+        try:
+            img_resp = requests.get(f"{BACKEND_URL}/image/{job_id}", timeout=30)
+            if img_resp.status_code == 200:
+                img = Image.open(BytesIO(img_resp.content))
+                st.image(img, use_container_width=True)
+                st.download_button(f"⬇  {T['download']}", data=img_resp.content,
+                                   file_name=f"nisar_{job_id}.png", mime="image/png")
+                stats = d.get("stats", {})
+                if stats:
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric(T["phase_min"], f"{stats.get('phase_min', 0):.2f} rad")
+                    c2.metric(T["phase_max"], f"{stats.get('phase_max', 0):.2f} rad")
+                    c3.metric(T["disp_min"], f"{stats.get('disp_min_cm', 0):.2f} cm")
+                    c4.metric(T["disp_max"], f"{stats.get('disp_max_cm', 0):.2f} cm")
+                st.markdown(f'<div class="explain-box"><h4 style="color:{accent_map}; margin:0 0 10px 0;">{T["explain_title"]}</h4><p><b>Coherence</b> — {T["explain_coherence"]}</p><p><b>Unwrapped Phase</b> — {T["explain_phase"]}</p><p><b>Surface Displacement</b> — {T["explain_displacement"]}</p></div>', unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Image fetch failed: {e}")
+
+st.markdown("---")
+st.markdown(f'<p style="text-align:center; color:{text_muted}; font-size:12px;">NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>', unsafe_allow_html=True)
