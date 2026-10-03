@@ -1,5 +1,5 @@
 """
-NISAR Surface Change Tracker — v4.2 (stable)
+NISAR Surface Change Tracker — v4.3 (stable)
 """
 import streamlit as st
 import folium
@@ -17,6 +17,9 @@ BACKEND_URL = "https://nisar-backend-production-feb6.up.railway.app"
 st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️",
                    layout="wide", initial_sidebar_state="collapsed")
 
+# ============================================================
+# SESSION STATE
+# ============================================================
 defaults = {
     "lang": "en", "change_type": None,
     "selected_lat": -75.0, "selected_lon": 0.0, "selected_address": "",
@@ -30,17 +33,49 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# ============================================================
+# CALLBACKS (safe state mutations)
+# ============================================================
+def toggle_theme():
+    st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+
+def toggle_help():
+    st.session_state["show_help"] = not st.session_state["show_help"]
+
+def go_to_app():
+    st.session_state["onboarded"] = True
+
+def go_to_landing():
+    st.session_state["onboarded"] = False
+
+def set_change_type(key):
+    if st.session_state["change_type"] != key:
+        st.session_state["change_type"] = key
+        st.session_state["availability_checked"] = False
+        st.session_state["job_id"] = None
+        st.session_state["regions_checked"] = False
+        st.session_state["regions_results"] = []
+
+def set_lang(lang_code):
+    st.session_state["lang"] = lang_code
+
+# ============================================================
+# LANGUAGE (before T)
+# ============================================================
 lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
-lang_name = st.selectbox("🌐 Language", list(lang_options.keys()),
+lang_name = st.selectbox(
+    "🌐 Language",
+    list(lang_options.keys()),
     index=list(lang_options.values()).index(st.session_state["lang"]),
-    key="global_lang_selector", label_visibility="collapsed")
-new_lang = lang_options[lang_name]
-if new_lang != st.session_state["lang"]:
-    st.session_state["lang"] = new_lang
-    st.rerun()
+    key="lang_selector",
+    label_visibility="collapsed",
+)
 
 T = TEXTS[st.session_state["lang"]]
 
+# ============================================================
+# CHANGE TYPES
+# ============================================================
 CHANGE_TYPES = {
     "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "map_color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef"},
     "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#3a7bd5", "map_color": "#5bc8ff", "dark_bg": "#061226", "light_bg": "#eef5ff"},
@@ -73,6 +108,9 @@ else:
     text_main = "#0a0e1a"; text_muted = "#5a6478"
     card_bg = "#ffffff"; card_border = "#d8dfeb"
 
+# ============================================================
+# CSS
+# ============================================================
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
@@ -109,14 +147,14 @@ button[kind="primary"] {{ background: linear-gradient(90deg, {accent} 0%, #FC3D2
 </style>
 """, unsafe_allow_html=True)
 
+# ============================================================
 # LANDING
+# ============================================================
 if not st.session_state["onboarded"]:
     c1, c2 = st.columns([6, 1])
     with c2:
-        theme_icon = "☀️ Light" if st.session_state["theme"] == "dark" else "🌙 Dark"
-        if st.button(theme_icon, key="landing_theme"):
-            st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
-            st.rerun()
+        theme_label = "☀️ Light" if st.session_state["theme"] == "dark" else "🌙 Dark"
+        st.button(theme_label, key="landing_theme", on_click=toggle_theme)
 
     st.markdown(f'<span class="hero-badge">{T["hero_badge"]}</span>', unsafe_allow_html=True)
     st.markdown("# NISAR Surface Change Tracker")
@@ -131,7 +169,6 @@ if not st.session_state["onboarded"]:
     st.markdown("---")
     st.markdown(f'## {T["method_title"]}')
     st.markdown(f'<p class="hero-sub">{T["method_sub"]}</p>', unsafe_allow_html=True)
-
     for i, (title, desc) in enumerate([
         (T["step1_title"], T["step1_text"]), (T["step2_title"], T["step2_text"]),
         (T["step3_title"], T["step3_text"]), (T["step4_title"], T["step4_text"]),
@@ -160,25 +197,21 @@ if not st.session_state["onboarded"]:
     st.markdown("---")
     cta1, cta2, cta3 = st.columns([1, 2, 1])
     with cta2:
-        if st.button(f"▶  {T['continue']}", use_container_width=True, type="primary", key="cta"):
-            st.session_state["onboarded"] = True
-            st.rerun()
+        st.button(f"▶  {T['continue']}", use_container_width=True, type="primary", key="cta", on_click=go_to_app)
 
     st.markdown("---")
     st.markdown(f'<div style="text-align:center; color:{text_muted}; font-size:13px;">{T["footer_built"]}<br>{T["footer_data"]}<br>{T["footer_credit"]}</div>', unsafe_allow_html=True)
     st.stop()
 
+# ============================================================
 # MAIN APP
+# ============================================================
 bc1, bc2, bc3 = st.columns([1, 5, 1])
 with bc1:
-    if st.button(f"← {T['back']}", key="back"):
-        st.session_state["onboarded"] = False
-        st.rerun()
+    st.button(f"← {T['back']}", key="back", on_click=go_to_landing)
 with bc3:
     theme_icon = "☀️" if st.session_state["theme"] == "dark" else "🌙"
-    if st.button(theme_icon, key="theme"):
-        st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
-        st.rerun()
+    st.button(theme_icon, key="theme", on_click=toggle_theme)
 
 col_logo, col_help = st.columns([5, 1])
 with col_logo:
@@ -186,9 +219,7 @@ with col_logo:
     st.markdown(f"<p style='color:{text_muted}; margin-top:-12px;'>{T['tagline']}</p>", unsafe_allow_html=True)
 with col_help:
     help_label = f"❌ {T['help']}" if st.session_state["show_help"] else f"❓ {T['help']}"
-    if st.button(help_label, key="help_btn", use_container_width=True):
-        st.session_state["show_help"] = not st.session_state["show_help"]
-        st.rerun()
+    st.button(help_label, key="help_btn", use_container_width=True, on_click=toggle_help)
 
 if st.session_state["show_help"]:
     st.markdown(f'<div class="help-box"><h4>{T["help_title"]}</h4><pre>{T["help_text"]}</pre></div>', unsafe_allow_html=True)
@@ -199,15 +230,9 @@ cols = st.columns(6)
 for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
     with cols[i]:
         is_active = st.session_state["change_type"] == key
-        if st.button(f"{cfg['icon']} {cfg['label']}", key=f"btn_{key}",
-                     use_container_width=True, type="primary" if is_active else "secondary"):
-            if st.session_state["change_type"] != key:
-                st.session_state["change_type"] = key
-                st.session_state["availability_checked"] = False
-                st.session_state["job_id"] = None
-                st.session_state["regions_checked"] = False
-                st.session_state["regions_results"] = []
-            st.rerun()
+        st.button(f"{cfg['icon']} {cfg['label']}", key=f"btn_{key}",
+                  use_container_width=True, type="primary" if is_active else "secondary",
+                  on_click=set_change_type, args=(key,))
 
 if st.session_state["change_type"]:
     st.markdown(f"<p style='color:{accent}; font-size:14px; text-align:center;'>{T['selected']}: <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
@@ -215,13 +240,13 @@ else:
     st.info(T["choose_type_to_continue"])
     st.stop()
 
-# STEP 2 — DATES
+# STEP 2
 st.markdown(f'<div class="section-header">2. {T["date_range"]}</div>', unsafe_allow_html=True)
 col_d1, col_d2 = st.columns(2)
 with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
 with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
 
-# STEP 3 — CHECK REGIONS
+# STEP 3
 st.markdown(f'<div class="section-header">3. {T["check_avail"]}</div>', unsafe_allow_html=True)
 if st.button(f"🔍 {T['check_avail']}", key="check_regions_btn", use_container_width=True):
     with st.spinner(T["checking_earthdata"]):
@@ -234,10 +259,11 @@ if st.button(f"🔍 {T['check_avail']}", key="check_regions_btn", use_container_
             data = r.json()
             st.session_state["regions_results"] = data.get("results", [])
             st.session_state["regions_checked"] = True
+            st.rerun()
         except Exception as e:
             st.error(f"❌ {e}")
 
-# STEP 4 — MAP
+# STEP 4
 st.markdown(f'<div class="section-header">4. {T["select_location"]}</div>', unsafe_allow_html=True)
 
 if not st.session_state["regions_checked"]:
@@ -251,19 +277,14 @@ else:
         attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
 
     for res in st.session_state["regions_results"]:
-        name = res["name"]
-        hlat = res["lat"]
-        hlon = res["lon"]
-        available = res.get("available", False)
-        count = res.get("count", 0)
+        name = res["name"]; hlat = res["lat"]; hlon = res["lon"]
+        available = res.get("available", False); count = res.get("count", 0)
         color = active["map_color"] if available else "#8892a6"
         radius = 12 if available else 7
         tooltip = f"<b>{name}</b><br>{'✅ '+str(count)+' scenes' if available else '❌ No data'}"
-        folium.CircleMarker(
-            location=[hlat, hlon], radius=radius,
+        folium.CircleMarker(location=[hlat, hlon], radius=radius,
             color=color, fill=True, fill_color=color, fill_opacity=0.75, weight=2,
-            tooltip=tooltip,
-        ).add_to(m)
+            tooltip=tooltip).add_to(m)
 
     folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
         tooltip="Selected", icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
@@ -288,7 +309,6 @@ else:
 
     st.markdown(f'<div class="info-box"><b>📍 {T["selected"]}:</b> {st.session_state["selected_lat"]:.3f}, {st.session_state["selected_lon"]:.3f}{"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}</div>', unsafe_allow_html=True)
 
-    # Show verified regions legend
     st.markdown(f"<p style='color:{accent}; font-weight:600; margin-top:12px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
     for res in st.session_state["regions_results"]:
         if res.get("available", False):
@@ -296,7 +316,7 @@ else:
         else:
             st.markdown(f'<div class="region-no"><b>❌ {res["name"]}</b> — no NISAR data for this period</div>', unsafe_allow_html=True)
 
-# STEP 5 — CHECK AVAILABILITY FOR SELECTED POINT
+# STEP 5
 st.markdown(f'<div class="section-header">5. {T["check_avail"]} (selected point)</div>', unsafe_allow_html=True)
 if st.button(f"🔍 {T['check_avail']}", key="check_btn", use_container_width=True):
     with st.spinner(T["checking_earthdata"]):
@@ -308,6 +328,7 @@ if st.button(f"🔍 {T['check_avail']}", key="check_btn", use_container_width=Tr
             st.session_state["availability_count"] = d.get("count", 0)
             st.session_state["availability_scenes"] = d.get("scenes", [])
             st.session_state["availability_checked"] = True
+            st.rerun()
         except Exception as e:
             st.error(f"❌ {e}")
 
