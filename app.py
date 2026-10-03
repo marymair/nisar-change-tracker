@@ -1,6 +1,5 @@
 """
-NISAR Surface Change Tracker — v4.1
-Full translation support on landing + main app.
+NISAR Surface Change Tracker — v4.2 (stable)
 """
 import streamlit as st
 import folium
@@ -18,51 +17,30 @@ BACKEND_URL = "https://nisar-backend-production-feb6.up.railway.app"
 st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️",
                    layout="wide", initial_sidebar_state="collapsed")
 
-# ============================================================
-# SESSION STATE — set BEFORE any T usage
-# ============================================================
 defaults = {
-    "lang": "en",
-    "change_type": None,
-    "selected_lat": -75.0,
-    "selected_lon": 0.0,
-    "selected_address": "",
-    "show_help": False,
-    "job_id": None,
-    "theme": "dark",
-    "map_center": [20, 0],
-    "map_zoom": 2,
-    "availability_checked": False,
-    "availability_count": None,
-    "availability_scenes": [],
+    "lang": "en", "change_type": None,
+    "selected_lat": -75.0, "selected_lon": 0.0, "selected_address": "",
+    "show_help": False, "job_id": None, "theme": "dark",
+    "map_center": [20, 0], "map_zoom": 2,
+    "availability_checked": False, "availability_count": None, "availability_scenes": [],
     "onboarded": False,
+    "regions_checked": False, "regions_results": [],
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ============================================================
-# LANGUAGE SELECTOR (must run BEFORE T is computed)
-# ============================================================
 lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
-lang_name = st.selectbox(
-    "🌐 Language",
-    list(lang_options.keys()),
+lang_name = st.selectbox("🌐 Language", list(lang_options.keys()),
     index=list(lang_options.values()).index(st.session_state["lang"]),
-    key="global_lang_selector",
-    label_visibility="collapsed",
-)
+    key="global_lang_selector", label_visibility="collapsed")
 new_lang = lang_options[lang_name]
 if new_lang != st.session_state["lang"]:
     st.session_state["lang"] = new_lang
     st.rerun()
 
-# Now T reflects the selected language
 T = TEXTS[st.session_state["lang"]]
 
-# ============================================================
-# CHANGE TYPES
-# ============================================================
 CHANGE_TYPES = {
     "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "map_color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef"},
     "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#3a7bd5", "map_color": "#5bc8ff", "dark_bg": "#061226", "light_bg": "#eef5ff"},
@@ -84,69 +62,54 @@ HOTSPOTS_BY_TYPE = {
 active = CHANGE_TYPES.get(st.session_state["change_type"]) if st.session_state["change_type"] else None
 accent = active["color"] if active else "#3a7bd5"
 
-# ============================================================
-# THEME
-# ============================================================
 if st.session_state["theme"] == "dark":
     bg_top = active["dark_bg"] if active else "#0a0e1a"
     bg_bottom = "#0a0e1a"
-    text_main = "#e8ecf5"
-    text_muted = "#8892a6"
-    card_bg = "#131829"
-    card_border = "#1f2640"
+    text_main = "#e8ecf5"; text_muted = "#8892a6"
+    card_bg = "#131829"; card_border = "#1f2640"
 else:
     bg_top = active["light_bg"] if active else "#f7f9fc"
     bg_bottom = "#f7f9fc"
-    text_main = "#0a0e1a"
-    text_muted = "#5a6478"
-    card_bg = "#ffffff"
-    card_border = "#d8dfeb"
+    text_main = "#0a0e1a"; text_muted = "#5a6478"
+    card_bg = "#ffffff"; card_border = "#d8dfeb"
 
-# ============================================================
-# CSS
-# ============================================================
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 html, body, [class*="css"] {{ font-family: 'Space Grotesk', sans-serif; color: {text_main}; }}
-.stApp {{ background: linear-gradient(180deg, {bg_top} 0%, {bg_bottom} 100%); transition: background 0.5s ease; }}
-h1 {{ background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; font-size: 3rem !important; line-height: 1.1 !important; }}
-h2 {{ color: {text_main} !important; font-weight: 600; font-size: 1.8rem !important; margin-top: 24px !important; }}
+.stApp {{ background: linear-gradient(180deg, {bg_top} 0%, {bg_bottom} 100%); }}
+h1 {{ background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; font-size: 3rem !important; }}
+h2 {{ color: {text_main} !important; font-weight: 600; font-size: 1.8rem !important; }}
 h3 {{ color: {text_main} !important; font-weight: 600; }}
-.section-header {{ display: inline-block; padding: 8px 18px; background: {card_bg}; border-left: 3px solid {accent}; border-radius: 4px; margin: 18px 0 12px 0; font-size: 1.25rem; font-weight: 600; color: {text_main}; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }}
-.stButton > button {{ background: {card_bg}; color: {text_main}; border: 1px solid {card_border}; padding: 12px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 14px; border-radius: 8px; transition: all 0.25s ease; width: 100%; }}
-.stButton > button:hover {{ border-color: {accent}; box-shadow: 0 0 14px {accent}44; transform: translateY(-1px); }}
+.section-header {{ display: inline-block; padding: 8px 18px; background: {card_bg}; border-left: 3px solid {accent}; border-radius: 4px; margin: 18px 0 12px 0; font-size: 1.25rem; font-weight: 600; color: {text_main}; }}
+.stButton > button {{ background: {card_bg}; color: {text_main}; border: 1px solid {card_border}; padding: 12px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 14px; border-radius: 8px; width: 100%; transition: all 0.25s ease; }}
+.stButton > button:hover {{ border-color: {accent}; box-shadow: 0 0 14px {accent}44; }}
 button[kind="primary"] {{ background: linear-gradient(90deg, {accent} 0%, #FC3D21 100%) !important; color: white !important; border: none !important; box-shadow: 0 0 20px {accent}88 !important; }}
-.help-box {{ background: {card_bg}; border: 1px solid {accent}; border-radius: 10px; padding: 16px 20px; margin: 12px 0 18px 0; color: {text_main}; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }}
-.help-box h4 {{ color: {accent}; margin: 0 0 10px 0; font-size: 16px; }}
+.help-box {{ background: {card_bg}; border: 1px solid {accent}; border-radius: 10px; padding: 16px 20px; margin: 12px 0 18px 0; }}
+.help-box h4 {{ color: {accent}; margin: 0 0 10px 0; }}
 .help-box pre {{ white-space: pre-wrap; font-family: 'Space Grotesk', sans-serif; font-size: 13px; line-height: 1.7; color: {text_muted}; margin: 0; }}
-.explain-box {{ background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; padding: 16px 20px; margin-top: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }}
+.explain-box {{ background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; padding: 16px 20px; margin-top: 20px; }}
 .explain-box p {{ margin: 8px 0; font-size: 14px; line-height: 1.6; color: {text_muted}; }}
 .explain-box b {{ color: {accent}; }}
 .info-box {{ background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; padding: 14px 18px; margin: 10px 0; color: {text_main}; font-size: 14px; }}
 .type-badge {{ display: inline-block; padding: 6px 14px; border-radius: 20px; background: {accent}; color: white; font-weight: 600; font-size: 14px; margin-left: 8px; }}
-.scene-row {{ background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-size: 13px; color: {text_main}; }}
-.scene-row b {{ color: {accent}; }}
-.landing-card {{ background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 24px; margin: 12px 0; height: 100%; }}
+.scene-row {{ background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-size: 13px; }}
+.region-ok {{ background: {card_bg}; border-left: 3px solid #27ae60; border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-size: 13px; }}
+.region-no {{ background: {card_bg}; border-left: 3px solid #8892a6; border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-size: 13px; color: {text_muted}; }}
+.landing-card {{ background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 24px; margin: 12px 0; }}
 .landing-card h3 {{ color: {accent}; margin: 0 0 10px 0; font-size: 1.1rem; }}
 .landing-card p {{ color: {text_muted}; font-size: 14px; line-height: 1.6; margin: 0; }}
 .pipeline-step {{ display: flex; align-items: flex-start; margin: 12px 0; padding: 12px 16px; background: {card_bg}; border-left: 3px solid {accent}; border-radius: 6px; }}
-.pipeline-step-num {{ background: {accent}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 14px; flex-shrink: 0; }}
-.pipeline-step-text {{ color: {text_main}; font-size: 14px; line-height: 1.5; }}
-.pipeline-step-text b {{ color: {accent}; }}
+.pipeline-step-num {{ background: {accent}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 14px; }}
 .impact-box {{ background: {card_bg}; border-radius: 10px; padding: 20px; margin: 8px 0; border: 1px solid {card_border}; }}
 .impact-box h4 {{ color: {accent}; margin: 0 0 8px 0; font-size: 1rem; }}
 .impact-box p {{ color: {text_muted}; font-size: 13px; line-height: 1.5; margin: 0; }}
-.footer-links {{ color: {text_muted}; font-size: 13px; line-height: 1.9; }}
-.footer-links a {{ color: {accent}; text-decoration: none; }}
 .hero-sub {{ color: {text_muted}; font-size: 1.15rem; line-height: 1.6; max-width: 720px; }}
 .hero-badge {{ display: inline-block; padding: 6px 14px; border-radius: 20px; background: {card_bg}; border: 1px solid {accent}; color: {accent}; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 20px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
-# LANDING PAGE
-# ============================================================
+# LANDING
 if not st.session_state["onboarded"]:
     c1, c2 = st.columns([6, 1])
     with c2:
@@ -158,42 +121,33 @@ if not st.session_state["onboarded"]:
     st.markdown(f'<span class="hero-badge">{T["hero_badge"]}</span>', unsafe_allow_html=True)
     st.markdown("# NISAR Surface Change Tracker")
     st.markdown(f'<p class="hero-sub">{T["hero_sub"]}</p>', unsafe_allow_html=True)
-
     st.markdown("---")
 
     f1, f2, f3 = st.columns(3)
-    with f1:
-        st.markdown(f'<div class="landing-card"><h3>📡 {T["feature1_title"]}</h3><p>{T["feature1_text"]}</p></div>', unsafe_allow_html=True)
-    with f2:
-        st.markdown(f'<div class="landing-card"><h3>🌍 {T["feature2_title"]}</h3><p>{T["feature2_text"]}</p></div>', unsafe_allow_html=True)
-    with f3:
-        st.markdown(f'<div class="landing-card"><h3>🔬 {T["feature3_title"]}</h3><p>{T["feature3_text"]}</p></div>', unsafe_allow_html=True)
+    with f1: st.markdown(f'<div class="landing-card"><h3>📡 {T["feature1_title"]}</h3><p>{T["feature1_text"]}</p></div>', unsafe_allow_html=True)
+    with f2: st.markdown(f'<div class="landing-card"><h3>🌍 {T["feature2_title"]}</h3><p>{T["feature2_text"]}</p></div>', unsafe_allow_html=True)
+    with f3: st.markdown(f'<div class="landing-card"><h3>🔬 {T["feature3_title"]}</h3><p>{T["feature3_text"]}</p></div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(f'## {T["method_title"]}')
     st.markdown(f'<p class="hero-sub">{T["method_sub"]}</p>', unsafe_allow_html=True)
 
-    steps = [
-        (T["step1_title"], T["step1_text"]),
-        (T["step2_title"], T["step2_text"]),
-        (T["step3_title"], T["step3_text"]),
-        (T["step4_title"], T["step4_text"]),
+    for i, (title, desc) in enumerate([
+        (T["step1_title"], T["step1_text"]), (T["step2_title"], T["step2_text"]),
+        (T["step3_title"], T["step3_text"]), (T["step4_title"], T["step4_text"]),
         (T["step5_title"], T["step5_text"]),
-    ]
-    for i, (title, desc) in enumerate(steps, 1):
-        st.markdown(f'<div class="pipeline-step"><div class="pipeline-step-num">{i}</div><div class="pipeline-step-text"><b>{title}</b> — {desc}</div></div>', unsafe_allow_html=True)
+    ], 1):
+        st.markdown(f'<div class="pipeline-step"><div class="pipeline-step-num">{i}</div><div><b>{title}</b> — {desc}</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(f'## {T["validation_title"]}')
     st.markdown(f'<p class="hero-sub">{T["validation_sub"]}</p>', unsafe_allow_html=True)
-
     v1, v2, v3, v4 = st.columns(4)
     with v1: st.metric(T["validation_phase"], "−26.75 … +27.53 rad")
     with v2: st.metric(T["validation_disp"], "−51.09 … +52.57 cm")
     with v3: st.metric(T["validation_coh"], "0.000 … 0.939")
     with v4: st.metric(T["validation_size"], "4185 × 4293 px")
-
-    st.markdown(f'<p style="color:{text_muted}; font-size:13px; margin-top:12px;">{T["validation_note"]}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:{text_muted}; font-size:13px;">{T["validation_note"]}</p>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(f'## {T["impact_title"]}')
@@ -206,26 +160,23 @@ if not st.session_state["onboarded"]:
     st.markdown("---")
     cta1, cta2, cta3 = st.columns([1, 2, 1])
     with cta2:
-        if st.button(f"▶  {T['continue']}", use_container_width=True, type="primary", key="cta_continue"):
+        if st.button(f"▶  {T['continue']}", use_container_width=True, type="primary", key="cta"):
             st.session_state["onboarded"] = True
             st.rerun()
 
     st.markdown("---")
-    st.markdown(f'<div class="footer-links" style="text-align:center;">{T["footer_built"]}<br>{T["footer_data"]}<br>{T["footer_credit"]}</div>', unsafe_allow_html=True)
-
+    st.markdown(f'<div style="text-align:center; color:{text_muted}; font-size:13px;">{T["footer_built"]}<br>{T["footer_data"]}<br>{T["footer_credit"]}</div>', unsafe_allow_html=True)
     st.stop()
 
-# ============================================================
 # MAIN APP
-# ============================================================
 bc1, bc2, bc3 = st.columns([1, 5, 1])
 with bc1:
-    if st.button(f"← {T['back']}", key="back_to_landing"):
+    if st.button(f"← {T['back']}", key="back"):
         st.session_state["onboarded"] = False
         st.rerun()
 with bc3:
     theme_icon = "☀️" if st.session_state["theme"] == "dark" else "🌙"
-    if st.button(theme_icon, key="app_theme"):
+    if st.button(theme_icon, key="theme"):
         st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
         st.rerun()
 
@@ -242,6 +193,7 @@ with col_help:
 if st.session_state["show_help"]:
     st.markdown(f'<div class="help-box"><h4>{T["help_title"]}</h4><pre>{T["help_text"]}</pre></div>', unsafe_allow_html=True)
 
+# STEP 1
 st.markdown(f'<div class="section-header">1. {T["type_of_change"]}</div>', unsafe_allow_html=True)
 cols = st.columns(6)
 for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
@@ -253,67 +205,99 @@ for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
                 st.session_state["change_type"] = key
                 st.session_state["availability_checked"] = False
                 st.session_state["job_id"] = None
+                st.session_state["regions_checked"] = False
+                st.session_state["regions_results"] = []
             st.rerun()
 
 if st.session_state["change_type"]:
-    st.markdown(f"<p style='color:{accent}; font-size:14px; text-align:center;'>"
-                f"{T['selected']}: <span class='type-badge'>{active['icon']} {active['label']}</span></p>",
-                unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{accent}; font-size:14px; text-align:center;'>{T['selected']}: <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
 else:
     st.info(T["choose_type_to_continue"])
     st.stop()
 
-st.markdown(f'<div class="section-header">2. {T["select_location"]}</div>', unsafe_allow_html=True)
-st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
-
-m = folium.Map(location=st.session_state["map_center"], zoom_start=st.session_state["map_zoom"],
-    min_zoom=2, max_zoom=10,
-    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
-
-hotspots = HOTSPOTS_BY_TYPE[st.session_state["change_type"]]
-for name, hlat, hlon, intensity in hotspots:
-    radius = 8 + int(intensity * 12)
-    folium.CircleMarker(location=[hlat, hlon], radius=radius,
-        color=active["map_color"], fill=True, fill_color=active["map_color"],
-        fill_opacity=0.65, weight=2,
-        tooltip=f"<b>{name}</b><br>{active['label']}<br>Intensity: {int(intensity*100)}%").add_to(m)
-
-folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-    tooltip="Selected", icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
-
-map_data = st_folium(m, height=500, use_container_width=True, key="nisar_map")
-
-if map_data and map_data.get("last_clicked"):
-    new_lat = map_data["last_clicked"]["lat"]
-    new_lon = map_data["last_clicked"]["lng"]
-    if abs(new_lat - st.session_state["selected_lat"]) > 0.001 or abs(new_lon - st.session_state["selected_lon"]) > 0.001:
-        st.session_state["selected_lat"] = new_lat
-        st.session_state["selected_lon"] = new_lon
-        st.session_state["availability_checked"] = False
-        st.session_state["job_id"] = None
-        try:
-            geolocator = Nominatim(user_agent="nisar_tracker")
-            loc = geolocator.reverse(f"{new_lat}, {new_lon}", timeout=5)
-            st.session_state["selected_address"] = loc.address if loc else "Remote area"
-        except Exception:
-            st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
-        st.rerun()
-
-st.markdown(f'<div class="info-box"><b>📍 {T["selected"]}:</b> {st.session_state["selected_lat"]:.3f}, {st.session_state["selected_lon"]:.3f}{"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}</div>', unsafe_allow_html=True)
-
-st.markdown(f"<p style='color:{accent}; font-weight:600; margin-top:12px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
-legend_cols = st.columns(len(hotspots))
-for i, (name, hlat, hlon, intensity) in enumerate(hotspots):
-    with legend_cols[i]:
-        st.markdown(f'<div style="background:{card_bg}; border-left:3px solid {active["map_color"]}; border-radius:6px; padding:8px 12px; margin:4px 0; font-size:12px;"><b style="color:{active["map_color"]};">● {name}</b><br><span style="color:{text_muted};">Intensity: {int(intensity*100)}%</span></div>', unsafe_allow_html=True)
-
-st.markdown(f'<div class="section-header">3. {T["date_range"]}</div>', unsafe_allow_html=True)
+# STEP 2 — DATES
+st.markdown(f'<div class="section-header">2. {T["date_range"]}</div>', unsafe_allow_html=True)
 col_d1, col_d2 = st.columns(2)
 with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
 with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
 
-st.markdown(f'<div class="section-header">4. {T["check_avail"]}</div>', unsafe_allow_html=True)
+# STEP 3 — CHECK REGIONS
+st.markdown(f'<div class="section-header">3. {T["check_avail"]}</div>', unsafe_allow_html=True)
+if st.button(f"🔍 {T['check_avail']}", key="check_regions_btn", use_container_width=True):
+    with st.spinner(T["checking_earthdata"]):
+        try:
+            hotspots = HOTSPOTS_BY_TYPE[st.session_state["change_type"]]
+            payload_regions = [{"name": name, "lat": lat, "lon": lon} for name, lat, lon, _ in hotspots]
+            r = requests.post(f"{BACKEND_URL}/check_regions",
+                json={"regions": payload_regions, "start_date": str(start_date), "end_date": str(end_date)},
+                timeout=120)
+            data = r.json()
+            st.session_state["regions_results"] = data.get("results", [])
+            st.session_state["regions_checked"] = True
+        except Exception as e:
+            st.error(f"❌ {e}")
+
+# STEP 4 — MAP
+st.markdown(f'<div class="section-header">4. {T["select_location"]}</div>', unsafe_allow_html=True)
+
+if not st.session_state["regions_checked"]:
+    st.info("👆 Нажмите «Проверить доступность», чтобы увидеть реальные регионы с данными NISAR")
+else:
+    st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
+
+    m = folium.Map(location=st.session_state["map_center"], zoom_start=st.session_state["map_zoom"],
+        min_zoom=2, max_zoom=10,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
+
+    for res in st.session_state["regions_results"]:
+        name = res["name"]
+        hlat = res["lat"]
+        hlon = res["lon"]
+        available = res.get("available", False)
+        count = res.get("count", 0)
+        color = active["map_color"] if available else "#8892a6"
+        radius = 12 if available else 7
+        tooltip = f"<b>{name}</b><br>{'✅ '+str(count)+' scenes' if available else '❌ No data'}"
+        folium.CircleMarker(
+            location=[hlat, hlon], radius=radius,
+            color=color, fill=True, fill_color=color, fill_opacity=0.75, weight=2,
+            tooltip=tooltip,
+        ).add_to(m)
+
+    folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
+        tooltip="Selected", icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
+
+    map_data = st_folium(m, height=500, use_container_width=True, key="nisar_map")
+
+    if map_data and map_data.get("last_clicked"):
+        new_lat = map_data["last_clicked"]["lat"]
+        new_lon = map_data["last_clicked"]["lng"]
+        if abs(new_lat - st.session_state["selected_lat"]) > 0.001 or abs(new_lon - st.session_state["selected_lon"]) > 0.001:
+            st.session_state["selected_lat"] = new_lat
+            st.session_state["selected_lon"] = new_lon
+            st.session_state["availability_checked"] = False
+            st.session_state["job_id"] = None
+            try:
+                geolocator = Nominatim(user_agent="nisar_tracker")
+                loc = geolocator.reverse(f"{new_lat}, {new_lon}", timeout=5)
+                st.session_state["selected_address"] = loc.address if loc else "Remote area"
+            except Exception:
+                st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
+            st.rerun()
+
+    st.markdown(f'<div class="info-box"><b>📍 {T["selected"]}:</b> {st.session_state["selected_lat"]:.3f}, {st.session_state["selected_lon"]:.3f}{"<br><i>" + st.session_state["selected_address"] + "</i>" if st.session_state.get("selected_address") else ""}</div>', unsafe_allow_html=True)
+
+    # Show verified regions legend
+    st.markdown(f"<p style='color:{accent}; font-weight:600; margin-top:12px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
+    for res in st.session_state["regions_results"]:
+        if res.get("available", False):
+            st.markdown(f'<div class="region-ok"><b>✅ {res["name"]}</b> — {res["count"]} scenes · Levels: {", ".join(res.get("levels", []))}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="region-no"><b>❌ {res["name"]}</b> — no NISAR data for this period</div>', unsafe_allow_html=True)
+
+# STEP 5 — CHECK AVAILABILITY FOR SELECTED POINT
+st.markdown(f'<div class="section-header">5. {T["check_avail"]} (selected point)</div>', unsafe_allow_html=True)
 if st.button(f"🔍 {T['check_avail']}", key="check_btn", use_container_width=True):
     with st.spinner(T["checking_earthdata"]):
         try:
@@ -336,7 +320,7 @@ if st.session_state["availability_checked"]:
         for s in st.session_state["availability_scenes"][:10]:
             st.markdown(f'<div class="scene-row"><b>{s.get("level", "?")}</b> · {s.get("name", "unknown")}<br><span style="color:{text_muted};">Date: {s.get("date", "unknown")}</span></div>', unsafe_allow_html=True)
 
-        st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header">6. {T["analyze"]}</div>', unsafe_allow_html=True)
         if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
             with st.spinner(f"🔎 {T['searching']}..."):
                 try:
@@ -352,6 +336,7 @@ if st.session_state["availability_checked"]:
                 except Exception as e:
                     st.error(f"❌ Backend: {e}")
 
+# RESULT
 if st.session_state["job_id"]:
     job_id = st.session_state["job_id"]
     st.markdown(f'<div class="section-header">{T["processing"]}...</div>', unsafe_allow_html=True)
