@@ -1,7 +1,10 @@
 streamlit
-pydeck
-pandas
+streamlit-folium
+folium
+geopy
 requests
 pillow
 numpy
 matplotlib
+pydeck
+pandas
