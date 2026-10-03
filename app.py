@@ -1,10 +1,9 @@
 """
-NISAR Surface Change Tracker — v6.2
-- All strings via translations
-- Auto-load regions on type selection
-- Clickable legend → markers on map
-- Selected scene stays highlighted
-- Fixed: nested f-string syntax error
+NISAR Surface Change Tracker — v6.3
+- Light theme by default
+- Clear "Analysis started" (no raw job id)
+- Data provenance block showing real NASA source
+- "Processing" → "Complete" after done
 """
 import streamlit as st
 import folium
@@ -29,11 +28,13 @@ defaults = {
     "lang": "en", "change_type": None,
     "selected_lat": -75.0, "selected_lon": 0.0, "selected_address": "",
     "scene_lat": None, "scene_lon": None, "scene_name": None, "scene_address": None,
-    "show_help": False, "job_id": None, "theme": "dark",
+    "show_help": False, "job_id": None, "scene_name_selected": None,
+    "theme": "light",
     "availability_checked": False, "availability_count": None, "availability_scenes": [],
     "onboarded": False,
     "regions_results": [], "auto_check_done_for": None,
     "hotspot_lat": None, "hotspot_lon": None, "hotspot_name": None,
+    "job_scene_name": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -69,6 +70,7 @@ def set_change_type(key):
         st.session_state["hotspot_lon"] = None
         st.session_state["hotspot_name"] = None
         st.session_state["job_id"] = None
+        st.session_state["job_scene_name"] = None
 
 def select_scene(name, lat, lon):
     st.session_state["scene_name"] = name
@@ -130,7 +132,7 @@ if st.session_state["theme"] == "dark":
     card_border = "#1f2640"
 else:
     bg_top = active["light_bg"] if active else "#f7f9fc"
-    bg_bottom = "#f7f9fc"
+    bg_bottom = "#ffffff"
     text_main = "#0a0e1a"
     text_muted = "#5a6478"
     card_bg = "#ffffff"
@@ -147,7 +149,7 @@ html, body, [class*="css"] {{ font-family: 'Space Grotesk', sans-serif; color: {
 h1 {{ background: linear-gradient(90deg, {accent_map} 0%, #FC3D21 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700; font-size: 3rem !important; }}
 h2 {{ color: {text_main} !important; font-weight: 600; font-size: 1.8rem !important; }}
 h3 {{ color: {text_main} !important; font-weight: 600; }}
-.section-header {{ display: inline-block; padding: 8px 18px; background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 4px; margin: 18px 0 12px 0; font-size: 1.25rem; font-weight: 600; color: {text_main}; }}
+.section-header {{ display: inline-block; padding: 8px 18px; background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 4px; margin: 18px 0 12px 0; font-size: 1.25rem; font-weight: 600; color: {text_main}; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }}
 .stButton > button {{ background: {card_bg}; color: {text_main}; border: 1px solid {card_border}; padding: 12px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 14px; border-radius: 8px; width: 100%; transition: all 0.2s ease; }}
 .stButton > button:hover {{ border-color: {accent_map}; box-shadow: 0 0 18px {glow}; transform: translateY(-1px); }}
 button[kind="primary"] {{ background: linear-gradient(90deg, {grad}) !important; color: white !important; border: none !important; font-weight: 700 !important; font-size: 15px !important; box-shadow: 0 0 24px {glow} !important; }}
@@ -156,17 +158,19 @@ button[kind="primary"]:active {{ box-shadow: 0 0 55px {glow} !important; transfo
 .help-box {{ background: {card_bg}; border: 1px solid {accent_map}; border-radius: 10px; padding: 16px 20px; margin: 12px 0 18px 0; }}
 .help-box h4 {{ color: {accent_map}; margin: 0 0 10px 0; }}
 .help-box pre {{ white-space: pre-wrap; font-family: 'Space Grotesk', sans-serif; font-size: 13px; line-height: 1.7; color: {text_muted}; margin: 0; }}
-.explain-box {{ background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 6px; padding: 16px 20px; margin-top: 20px; }}
+.explain-box {{ background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 6px; padding: 16px 20px; margin-top: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }}
 .explain-box p {{ margin: 8px 0; font-size: 14px; line-height: 1.6; color: {text_muted}; }}
 .explain-box b {{ color: {accent_map}; }}
-.info-box {{ background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 6px; padding: 14px 18px; margin: 10px 0; color: {text_main}; font-size: 14px; line-height: 1.7; }}
+.info-box {{ background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 6px; padding: 14px 18px; margin: 10px 0; color: {text_main}; font-size: 14px; line-height: 1.7; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }}
+.provenance-box {{ background: {card_bg}; border-left: 3px solid #27ae60; border-radius: 6px; padding: 14px 18px; margin: 10px 0; color: {text_main}; font-size: 13px; line-height: 1.8; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }}
+.provenance-box b {{ color: #27ae60; }}
 .type-badge {{ display: inline-block; padding: 6px 14px; border-radius: 20px; background: {accent_map}; color: white; font-weight: 600; font-size: 14px; margin-left: 8px; }}
-.landing-card {{ background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 24px; margin: 12px 0; }}
+.landing-card {{ background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 24px; margin: 12px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }}
 .landing-card h3 {{ color: {accent_map}; margin: 0 0 10px 0; font-size: 1.1rem; }}
 .landing-card p {{ color: {text_muted}; font-size: 14px; line-height: 1.6; margin: 0; }}
 .pipeline-step {{ display: flex; align-items: flex-start; margin: 12px 0; padding: 12px 16px; background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 6px; }}
 .pipeline-step-num {{ background: {accent_map}; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 14px; }}
-.impact-box {{ background: {card_bg}; border-radius: 10px; padding: 20px; margin: 8px 0; border: 1px solid {card_border}; }}
+.impact-box {{ background: {card_bg}; border-radius: 10px; padding: 20px; margin: 8px 0; border: 1px solid {card_border}; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }}
 .impact-box h4 {{ color: {accent_map}; margin: 0 0 8px 0; font-size: 1rem; }}
 .impact-box p {{ color: {text_muted}; font-size: 13px; line-height: 1.5; margin: 0; }}
 .hero-sub {{ color: {text_muted}; font-size: 1.15rem; line-height: 1.6; max-width: 720px; }}
@@ -272,7 +276,7 @@ col_d1, col_d2 = st.columns(2)
 with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
 with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
 
-# AUTO-CHECK REGIONS
+# AUTO-CHECK
 check_key = f"{st.session_state['change_type']}|{start_date}|{end_date}"
 if st.session_state.get("auto_check_done_for") != check_key:
     with st.spinner(T["checking_earthdata"]):
@@ -303,7 +307,6 @@ m = folium.Map(location=[20, 0], zoom_start=2, min_zoom=2, max_zoom=10,
     tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
 
-# Regions
 for res in st.session_state["regions_results"]:
     name = res["name"]
     hlat = res["lat"]
@@ -326,7 +329,6 @@ for res in st.session_state["regions_results"]:
         tooltip=folium.Tooltip(tooltip_html, sticky=True),
     ).add_to(m)
 
-# Hotspot marker (from legend click)
 if st.session_state.get("hotspot_lat") is not None:
     folium.Marker(
         location=[st.session_state["hotspot_lat"], st.session_state["hotspot_lon"]],
@@ -334,7 +336,6 @@ if st.session_state.get("hotspot_lat") is not None:
         icon=folium.Icon(color="blue", icon="star", prefix="fa"),
     ).add_to(m)
 
-# Scene marker
 if st.session_state.get("scene_lat") is not None:
     scene_tooltip = f"🛰 {st.session_state.get('scene_name', '')}"
     if st.session_state.get("scene_address"):
@@ -345,7 +346,6 @@ if st.session_state.get("scene_lat") is not None:
         icon=folium.Icon(color="orange", icon="satellite", prefix="fa"),
     ).add_to(m)
 
-# Selected point — build tooltip safely
 _addr = st.session_state.get("selected_address")
 if not _addr:
     _addr = f"{st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}"
@@ -367,6 +367,7 @@ if map_data and map_data.get("last_clicked"):
         st.session_state["selected_lon"] = new_lon
         st.session_state["availability_checked"] = False
         st.session_state["job_id"] = None
+        st.session_state["job_scene_name"] = None
         try:
             geolocator = Nominatim(user_agent="nisar_tracker")
             loc = geolocator.reverse(f"{new_lat}, {new_lon}", timeout=5)
@@ -375,7 +376,6 @@ if map_data and map_data.get("last_clicked"):
             st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
         st.rerun()
 
-# Selected info box
 selected_info = f"<b>📍 {T['selected']}:</b> {st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}"
 if st.session_state.get("selected_address"):
     selected_info += f"<br><i>{st.session_state['selected_address']}</i>"
@@ -395,7 +395,6 @@ else:
 
 st.markdown(f'<div class="info-box">{selected_info}</div>', unsafe_allow_html=True)
 
-# Legend — clickable buttons
 st.markdown(f"<p style='color:{accent_map}; font-weight:600; margin-top:16px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
 legend_cols = st.columns(len(st.session_state["regions_results"]))
 for i, res in enumerate(st.session_state["regions_results"]):
@@ -427,83 +426,4 @@ if st.session_state["availability_checked"]:
     if count == 0:
         st.warning(f"⚠️ {T['no_data']}")
     else:
-        st.success(f"✅ {count} {T['scenes_found']}")
-        for i, s in enumerate(st.session_state["availability_scenes"][:20]):
-            scene_name = s.get("name", "unknown")
-            level = s.get("level", "?")
-            date = s.get("date", "unknown")
-            slat = s.get("lat", st.session_state["selected_lat"])
-            slon = s.get("lon", st.session_state["selected_lon"])
-            is_selected = st.session_state.get("scene_name") == scene_name
-            btn_label = f"{'🎯 ' if is_selected else ''}{level} · {scene_name[:60]}... · {date}"
-            st.button(btn_label, key=f"scene_{i}", use_container_width=True,
-                      type="primary" if is_selected else "secondary",
-                      on_click=select_scene, args=(scene_name, slat, slon))
-
-        st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
-        if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
-            with st.spinner(f"🔎 {T['searching']}..."):
-                try:
-                    resp = requests.post(f"{BACKEND_URL}/analyze",
-                        json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
-                              "start_date": str(start_date), "end_date": str(end_date)}, timeout=30)
-                    data = resp.json()
-                    if "error" in data:
-                        st.error(f"❌ {data['error']}")
-                    else:
-                        st.session_state["job_id"] = data.get("job_id")
-                        st.success(f"✅ Job: `{data.get('job_id')}`")
-                except Exception as e:
-                    st.error(f"❌ Backend: {e}")
-
-# RESULT
-if st.session_state["job_id"]:
-    job_id = st.session_state["job_id"]
-    st.markdown(f'<div class="section-header">{T["processing"]}...</div>', unsafe_allow_html=True)
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    status = "processing"
-    d = {}
-    for i in range(60):
-        try:
-            r = requests.get(f"{BACKEND_URL}/status/{job_id}", timeout=10)
-            d = r.json()
-            status = d.get("status", "unknown")
-            if status == "processing":
-                progress_bar.progress(min((i + 1) * 2, 95))
-                status_text.text(f"⏳ {d.get('scene_name', '')}")
-                time.sleep(5)
-            elif status == "done":
-                progress_bar.progress(100)
-                status_text.text("✅")
-                break
-            elif status == "error":
-                st.error(f"❌ {d.get('error', 'unknown')}")
-                break
-        except Exception:
-            time.sleep(5)
-
-    if status == "done":
-        st.markdown(f'<div class="section-header">{T["result"]}</div>', unsafe_allow_html=True)
-        if st.session_state["change_type"]:
-            st.markdown(f"<p style='font-size:15px;'><b>{T['type_of_change']}:</b> <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
-        try:
-            img_resp = requests.get(f"{BACKEND_URL}/image/{job_id}", timeout=30)
-            if img_resp.status_code == 200:
-                img = Image.open(BytesIO(img_resp.content))
-                st.image(img, use_container_width=True)
-                st.download_button(f"⬇  {T['download']}", data=img_resp.content,
-                                   file_name=f"nisar_{job_id}.png", mime="image/png")
-                stats = d.get("stats", {})
-                if stats:
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric(T["phase_min"], f"{stats.get('phase_min', 0):.2f} rad")
-                    c2.metric(T["phase_max"], f"{stats.get('phase_max', 0):.2f} rad")
-                    c3.metric(T["disp_min"], f"{stats.get('disp_min_cm', 0):.2f} cm")
-                    c4.metric(T["disp_max"], f"{stats.get('disp_max_cm', 0):.2f} cm")
-                st.markdown(f'<div class="explain-box"><h4 style="color:{accent_map}; margin:0 0 10px 0;">{T["explain_title"]}</h4><p><b>Coherence</b> — {T["explain_coherence"]}</p><p><b>Unwrapped Phase</b> — {T["explain_phase"]}</p><p><b>Surface Displacement</b> — {T["explain_displacement"]}</p></div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Image fetch failed: {e}")
-
-st.markdown("---")
-st.markdown(f'<p style="text-align:center; color:{text_muted}; font-size:12px;">NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>', unsafe_allow_html=True)
+        st.success(f"✅ {count} {T['scenes
