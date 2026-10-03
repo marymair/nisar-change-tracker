@@ -1,8 +1,7 @@
 """
-NISAR Surface Change Tracker — v6.4
-- Scene click updates SELECTED point (not only scene marker)
-- Auto-load scenes (no button)
-- Scene markers show real distinct coords
+NISAR Surface Change Tracker — v6.5
+- Scene click reruns, highlights; no fake map dots
+- Light theme default; real NISAR coords only
 """
 import streamlit as st
 import folium
@@ -26,7 +25,7 @@ defaults = {
     "scene_lat": None, "scene_lon": None, "scene_name": None, "scene_address": None,
     "show_help": False, "job_id": None, "job_scene_name": None,
     "theme": "light",
-    "availability_checked": False, "availability_count": None, "availability_scenes": [],
+    "availability_count": None, "availability_scenes": [],
     "scenes_loaded_for": None,
     "onboarded": False,
     "regions_results": [], "auto_check_done_for": None,
@@ -44,7 +43,6 @@ def go_to_landing(): st.session_state["onboarded"] = False
 def set_change_type(key):
     if st.session_state["change_type"] != key:
         st.session_state["change_type"] = key
-        st.session_state["availability_checked"] = False
         st.session_state["availability_count"] = None
         st.session_state["availability_scenes"] = []
         st.session_state["scenes_loaded_for"] = None
@@ -60,22 +58,21 @@ def set_change_type(key):
         st.session_state["job_scene_name"] = None
 
 def select_scene(name, lat, lon):
-    """Updates BOTH the scene marker AND the selected point."""
     st.session_state["scene_name"] = name
     st.session_state["scene_lat"] = lat
     st.session_state["scene_lon"] = lon
-    st.session_state["selected_lat"] = lat
-    st.session_state["selected_lon"] = lon
-    st.session_state["availability_checked"] = False
+    if lat is not None and lon is not None:
+        st.session_state["selected_lat"] = lat
+        st.session_state["selected_lon"] = lon
+        try:
+            geolocator = Nominatim(user_agent="nisar_tracker")
+            loc = geolocator.reverse(f"{lat}, {lon}", timeout=5)
+            addr = loc.address if loc else "Remote area"
+        except Exception:
+            addr = f"{lat:.3f}, {lon:.3f}"
+        st.session_state["selected_address"] = addr
+        st.session_state["scene_address"] = addr
     st.session_state["job_id"] = None
-    try:
-        geolocator = Nominatim(user_agent="nisar_tracker")
-        loc = geolocator.reverse(f"{lat}, {lon}", timeout=5)
-        addr = loc.address if loc else "Remote area"
-    except Exception:
-        addr = f"{lat:.3f}, {lon:.3f}"
-    st.session_state["scene_address"] = addr
-    st.session_state["selected_address"] = addr
 
 def select_hotspot(name, lat, lon):
     st.session_state["hotspot_name"] = name
@@ -91,7 +88,6 @@ def select_hotspot(name, lat, lon):
     except Exception:
         st.session_state["selected_address"] = f"{lat:.3f}, {lon:.3f}"
 
-# LANGUAGE
 lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
 lang_name = st.selectbox("🌐 Language", list(lang_options.keys()),
     index=list(lang_options.values()).index(st.session_state["lang"]),
@@ -140,9 +136,10 @@ h2 {{ color: {text_main} !important; font-weight: 600; font-size: 1.8rem !import
 h3 {{ color: {text_main} !important; font-weight: 600; }}
 .section-header {{ display: inline-block; padding: 8px 18px; background: {card_bg}; border-left: 3px solid {accent_map}; border-radius: 4px; margin: 18px 0 12px 0; font-size: 1.25rem; font-weight: 600; color: {text_main}; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }}
 .stButton > button {{ background: {card_bg}; color: {text_main}; border: 1px solid {card_border}; padding: 12px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 14px; border-radius: 8px; width: 100%; transition: all 0.2s ease; }}
-.stButton > button:hover {{ border-color: {accent_map}; box-shadow: 0 0 18px {glow}; transform: translateY(-1px); }}
-button[kind="primary"] {{ background: linear-gradient(90deg, {grad}) !important; color: white !important; border: none !important; font-weight: 700 !important; font-size: 15px !important; box-shadow: 0 0 24px {glow} !important; }}
-button[kind="primary"]:hover {{ box-shadow: 0 0 42px {glow}, 0 0 68px {glow} !important; transform: translateY(-2px) scale(1.01) !important; }}
+.stButton > button:hover {{ border-color: {accent_map}; box-shadow: 0 0 18px {glow}; }}
+button[kind="primary"] {{ background: linear-gradient(90deg, {grad}) !important; color: white !important; border: 2px solid {accent_map} !important; font-weight: 700 !important; font-size: 15px !important; box-shadow: 0 0 24px {glow} !important; }}
+button[kind="primary"]:hover {{ box-shadow: 0 0 42px {glow}, 0 0 68px {glow} !important; }}
+button[kind="primary"]:active {{ box-shadow: 0 0 55px {glow} !important; }}
 .help-box {{ background: {card_bg}; border: 1px solid {accent_map}; border-radius: 10px; padding: 16px 20px; margin: 12px 0 18px 0; }}
 .help-box h4 {{ color: {accent_map}; margin: 0 0 10px 0; }}
 .help-box pre {{ white-space: pre-wrap; font-family: 'Space Grotesk', sans-serif; font-size: 13px; line-height: 1.7; color: {text_muted}; margin: 0; }}
@@ -207,257 +204,4 @@ if not st.session_state["onboarded"]:
     st.stop()
 
 # MAIN
-bc1, bc2, bc3 = st.columns([1, 5, 1])
-with bc1: st.button(f"← {T['back']}", key="back_btn", on_click=go_to_landing)
-with bc3: st.button("☀️" if st.session_state["theme"] == "dark" else "🌙", key="theme_toggle_btn", on_click=toggle_theme)
-
-col_logo, col_help = st.columns([5, 1])
-with col_logo:
-    st.markdown("# NISAR Surface Change Tracker")
-    st.markdown(f"<p style='color:{text_muted}; margin-top:-12px;'>{T['tagline']}</p>", unsafe_allow_html=True)
-with col_help:
-    help_label = f"❌ {T['help']}" if st.session_state["show_help"] else f"❓ {T['help']}"
-    st.button(help_label, key="help_btn", use_container_width=True, on_click=toggle_help)
-if st.session_state["show_help"]:
-    st.markdown(f'<div class="help-box"><h4>{T["help_title"]}</h4><pre>{T["help_text"]}</pre></div>', unsafe_allow_html=True)
-
-st.markdown(f'<div class="section-header">1. {T["type_of_change"]}</div>', unsafe_allow_html=True)
-cols = st.columns(6)
-for i, (key, cfg) in enumerate(CHANGE_TYPES.items()):
-    with cols[i]:
-        is_active = st.session_state["change_type"] == key
-        st.button(f"{cfg['icon']} {cfg['label']}", key=f"btn_{key}",
-                  use_container_width=True, type="primary" if is_active else "secondary",
-                  on_click=set_change_type, args=(key,))
-
-if st.session_state["change_type"]:
-    st.markdown(f"<p style='color:{accent_map}; font-size:14px; text-align:center;'>{T['selected']}: <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
-else:
-    st.info(T["choose_type_to_continue"]); st.stop()
-
-st.markdown(f'<div class="section-header">2. {T["date_range"]}</div>', unsafe_allow_html=True)
-col_d1, col_d2 = st.columns(2)
-with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"))
-with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"))
-
-# AUTO: check regions
-check_key = f"{st.session_state['change_type']}|{start_date}|{end_date}"
-if st.session_state.get("auto_check_done_for") != check_key:
-    with st.spinner(T["checking_earthdata"]):
-        try:
-            hotspots_raw = HOTSPOTS_BY_TYPE[st.session_state["change_type"]]
-            payload_regions = [{"name": name, "lat": lat, "lon": lon} for name, lat, lon, _, _ in hotspots_raw]
-            r = requests.post(f"{BACKEND_URL}/check_regions",
-                json={"regions": payload_regions, "start_date": str(start_date), "end_date": str(end_date)},
-                timeout=120)
-            data = r.json()
-            results = data.get("results", [])
-            for res in results:
-                for name, lat, lon, intensity, date_meta in hotspots_raw:
-                    if res["name"] == name:
-                        res["intensity"] = intensity
-                        res["date_meta"] = date_meta
-            results.sort(key=lambda x: x.get("intensity", 0), reverse=True)
-            st.session_state["regions_results"] = results
-            st.session_state["auto_check_done_for"] = check_key
-        except Exception as e:
-            st.error(f"❌ {e}")
-
-# AUTO: load scenes for current selected point
-scenes_key = f"{check_key}|{st.session_state['selected_lat']:.3f}|{st.session_state['selected_lon']:.3f}"
-if st.session_state.get("scenes_loaded_for") != scenes_key:
-    try:
-        r = requests.post(f"{BACKEND_URL}/search",
-            json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
-                  "start_date": str(start_date), "end_date": str(end_date)}, timeout=60)
-        d = r.json()
-        st.session_state["availability_count"] = d.get("count", 0)
-        st.session_state["availability_scenes"] = d.get("scenes", [])
-        st.session_state["availability_checked"] = True
-        st.session_state["scenes_loaded_for"] = scenes_key
-    except Exception as e:
-        st.session_state["availability_count"] = 0
-        st.session_state["availability_scenes"] = []
-        st.session_state["availability_checked"] = True
-
-# MAP
-st.markdown(f'<div class="section-header">3. {T["select_location"]}</div>', unsafe_allow_html=True)
-st.markdown(f"<p style='color:{text_muted}; font-size:13px;'>{T['click_map']}</p>", unsafe_allow_html=True)
-
-m = folium.Map(location=[20, 0], zoom_start=2, min_zoom=2, max_zoom=10,
-    tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
-
-for res in st.session_state["regions_results"]:
-    name = res["name"]; hlat = res["lat"]; hlon = res["lon"]
-    available = res.get("available", False); count = res.get("count", 0)
-    intensity = res.get("intensity", 0.5); date_meta = res.get("date_meta", "")
-    color = accent_map if available else "#8892a6"
-    radius = 8 + int(intensity * 12) if available else 7
-    tooltip_html = (f"<div style='font-family: Space Grotesk, sans-serif;'>"
-        f"<b>{name}</b><br>Type: {active['label']}<br>Date: {date_meta}<br>"
-        f"Intensity: {int(intensity*100)}%<br>"
-        f"{'✅ '+str(count)+' scenes' if available else '❌ No data'}</div>")
-    folium.CircleMarker(location=[hlat, hlon], radius=radius,
-        color=color, fill=True, fill_color=color, fill_opacity=0.75, weight=2,
-        tooltip=folium.Tooltip(tooltip_html, sticky=True)).add_to(m)
-
-# All scenes as small dots
-for s in st.session_state.get("availability_scenes", []):
-    slat = s.get("lat"); slon = s.get("lon")
-    if slat is None or slon is None: continue
-    is_selected = st.session_state.get("scene_name") == s.get("name")
-    folium.CircleMarker(
-        location=[slat, slon], radius=5 if not is_selected else 9,
-        color="#ff8c00", fill=True, fill_color="#ff8c00",
-        fill_opacity=0.9 if is_selected else 0.5, weight=1,
-        tooltip=f"🛰 {s.get('name', '')[:60]} · {s.get('date', '')}").add_to(m)
-
-# Selected point marker
-_addr = st.session_state.get("selected_address") or f"{st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}"
-folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]],
-    tooltip=f"📍 Selected: {_addr}",
-    icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
-
-map_data = st_folium(m, height=500, use_container_width=True, key="nisar_map")
-
-if map_data and map_data.get("last_clicked"):
-    new_lat = map_data["last_clicked"]["lat"]; new_lon = map_data["last_clicked"]["lng"]
-    if abs(new_lat - st.session_state["selected_lat"]) > 0.001 or abs(new_lon - st.session_state["selected_lon"]) > 0.001:
-        st.session_state["selected_lat"] = new_lat
-        st.session_state["selected_lon"] = new_lon
-        st.session_state["job_id"] = None
-        st.session_state["scenes_loaded_for"] = None
-        try:
-            geolocator = Nominatim(user_agent="nisar_tracker")
-            loc = geolocator.reverse(f"{new_lat}, {new_lon}", timeout=5)
-            st.session_state["selected_address"] = loc.address if loc else "Remote area"
-        except Exception:
-            st.session_state["selected_address"] = f"{new_lat:.3f}, {new_lon:.3f}"
-        st.rerun()
-
-# Info box
-selected_info = f"<b>📍 {T['selected']}:</b> {st.session_state['selected_lat']:.3f}, {st.session_state['selected_lon']:.3f}"
-if st.session_state.get("selected_address"):
-    selected_info += f"<br><i>{st.session_state['selected_address']}</i>"
-selected_info += f"<br><b>Type:</b> {active['icon']} {active['label']}"
-
-nearest = None
-for res in st.session_state["regions_results"]:
-    if abs(res["lat"] - st.session_state["selected_lat"]) < 5 and abs(res["lon"] - st.session_state["selected_lon"]) < 5:
-        nearest = res; break
-if nearest:
-    selected_info += f"<br><b>{T['intensity']}:</b> {int(nearest.get('intensity', 0) * 100)}% · {nearest.get('date_meta', '')}"
-    selected_info += f"<br><b>{T['nearest_hotspot']}:</b> {nearest['name']}"
-else:
-    selected_info += f"<br><b>{T['intensity']}:</b> — {T['no_data_for_point']}"
-
-st.markdown(f'<div class="info-box">{selected_info}</div>', unsafe_allow_html=True)
-
-# Legend
-st.markdown(f"<p style='color:{accent_map}; font-weight:600; margin-top:16px;'>📌 {T['legend']} — {active['label']}:</p>", unsafe_allow_html=True)
-legend_cols = st.columns(len(st.session_state["regions_results"]))
-for i, res in enumerate(st.session_state["regions_results"]):
-    with legend_cols[i]:
-        status = "✅" if res.get("available") else "❌"
-        is_selected = st.session_state.get("hotspot_name") == res["name"]
-        label = f"{'🎯 ' if is_selected else ''}{status} {res['name']}\n{res.get('date_meta', '')} · {int(res.get('intensity', 0) * 100)}%"
-        st.button(label, key=f"legend_{i}", use_container_width=True,
-                  on_click=select_hotspot, args=(res["name"], res["lat"], res["lon"]))
-
-# SCENES — auto-loaded
-st.markdown(f'<div class="section-header">4. {T["check_avail"]}</div>', unsafe_allow_html=True)
-count = st.session_state.get("availability_count", 0)
-if count == 0:
-    st.warning(f"⚠️ {T['no_data']}")
-else:
-    st.success(f"✅ {count} {T['scenes_found']}")
-    for i, s in enumerate(st.session_state["availability_scenes"][:20]):
-        scene_name = s.get("name", "unknown")
-        level = s.get("level", "?"); date = s.get("date", "unknown")
-        slat = s.get("lat", st.session_state["selected_lat"])
-        slon = s.get("lon", st.session_state["selected_lon"])
-        is_selected = st.session_state.get("scene_name") == scene_name
-        btn_label = f"{'🎯 ' if is_selected else ''}{level} · {scene_name[:60]}... · {date}"
-        st.button(btn_label, key=f"scene_{i}", use_container_width=True,
-                  type="primary" if is_selected else "secondary",
-                  on_click=select_scene, args=(scene_name, slat, slon))
-
-    st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
-    if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
-        with st.spinner(f"🔎 {T['searching']}..."):
-            try:
-                resp = requests.post(f"{BACKEND_URL}/analyze",
-                    json={"lat": st.session_state["selected_lat"], "lon": st.session_state["selected_lon"],
-                          "start_date": str(start_date), "end_date": str(end_date)}, timeout=30)
-                data = resp.json()
-                if "error" in data:
-                    st.error(f"❌ {data['error']}")
-                else:
-                    st.session_state["job_id"] = data.get("job_id")
-                    st.session_state["job_scene_name"] = data.get("scene_name", "")
-                    st.success("✅ Analysis started — downloading NISAR scene from NASA ASF...")
-            except Exception as e:
-                st.error(f"❌ Backend: {e}")
-
-# RESULT
-if st.session_state["job_id"]:
-    job_id = st.session_state["job_id"]
-    scene_downloaded = st.session_state.get("job_scene_name", "")
-    status_placeholder = st.empty()
-    progress_bar = st.progress(0); status_text = st.empty()
-    status = "processing"; d = {}
-    for i in range(60):
-        try:
-            r = requests.get(f"{BACKEND_URL}/status/{job_id}", timeout=10)
-            d = r.json(); status = d.get("status", "unknown")
-            if status == "processing":
-                status_placeholder.markdown(f'<div class="section-header">⏳ Processing NISAR data...</div>', unsafe_allow_html=True)
-                progress_bar.progress(min((i + 1) * 2, 95))
-                status_text.text("⏳ Downloading from NASA ASF...")
-                time.sleep(5)
-            elif status == "done":
-                status_placeholder.markdown(f'<div class="section-header">✅ Analysis Complete</div>', unsafe_allow_html=True)
-                progress_bar.progress(100); status_text.text(""); break
-            elif status == "error":
-                status_placeholder.markdown(f'<div class="section-header">❌ Error</div>', unsafe_allow_html=True)
-                st.error(f"❌ {d.get('error', 'unknown')}"); break
-        except Exception:
-            time.sleep(5)
-
-    if status == "done":
-        st.markdown(f'''
-        <div class="provenance-box">
-        <b>✅ Data provenance</b><br>
-        <b>Source:</b> NASA / ISRO NISAR mission<br>
-        <b>Provider:</b> Alaska Satellite Facility (ASF) DAAC · ASF API v2<br>
-        <b>Scene:</b> {scene_downloaded}<br>
-        <b>Product type:</b> L1 / L2 GUNW (Geocoded Unwrapped Interferogram)<br>
-        <b>Processing:</b> NASA JPL · NISAR Product Spec D-102271<br>
-        <b>Computed on:</b> this session, real time — no pre-baked imagery
-        </div>
-        ''', unsafe_allow_html=True)
-
-        st.markdown(f'<div class="section-header">{T["result"]}</div>', unsafe_allow_html=True)
-        if st.session_state["change_type"]:
-            st.markdown(f"<p style='font-size:15px;'><b>{T['type_of_change']}:</b> <span class='type-badge'>{active['icon']} {active['label']}</span></p>", unsafe_allow_html=True)
-        try:
-            img_resp = requests.get(f"{BACKEND_URL}/image/{job_id}", timeout=30)
-            if img_resp.status_code == 200:
-                img = Image.open(BytesIO(img_resp.content))
-                st.image(img, use_container_width=True)
-                st.download_button(f"⬇  {T['download']}", data=img_resp.content,
-                                   file_name=f"nisar_{job_id}.png", mime="image/png")
-                stats = d.get("stats", {})
-                if stats:
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric(T["phase_min"], f"{stats.get('phase_min', 0):.2f} rad")
-                    c2.metric(T["phase_max"], f"{stats.get('phase_max', 0):.2f} rad")
-                    c3.metric(T["disp_min"], f"{stats.get('disp_min_cm', 0):.2f} cm")
-                    c4.metric(T["disp_max"], f"{stats.get('disp_max_cm', 0):.2f} cm")
-                st.markdown(f'<div class="explain-box"><h4 style="color:{accent_map}; margin:0 0 10px 0;">{T["explain_title"]}</h4><p><b>Coherence</b> — {T["explain_coherence"]}</p><p><b>Unwrapped Phase</b> — {T["explain_phase"]}</p><p><b>Surface displacement</b> — {T["explain_displacement"]}</p></div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Image fetch failed: {e}")
-
-st.markdown("---")
-st.markdown(f'<p style="text-align:center; color:{text_muted}; font-size:12px;">NASA Space Apps Challenge · NISAR L1 GUNW · NASA Earthdata</p>', unsafe_allow_html=True)
+bc
