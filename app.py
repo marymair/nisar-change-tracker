@@ -1,6 +1,6 @@
 """
-NISAR Surface Change Tracker — v6.5 (Final Fix)
-Fixed: contrast, translations, date limits, backend URL.
+NISAR Surface Change Tracker — v7.0 (Final Stable)
+Fixed: KeyError gradient, all gradients restored, full translations.
 """
 import streamlit as st
 import folium
@@ -45,15 +45,16 @@ lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Fran
 lang_name = st.selectbox("🌐 Language", list(lang_options.keys()), index=list(lang_options.values()).index(st.session_state["lang"]), key="lang_selector", label_visibility="collapsed")
 T = TEXTS[st.session_state["lang"]]
 
-# CHANGE TYPES
+# CHANGE TYPES - С ГРАДИЕНТАМИ
 CHANGE_TYPES = {
-    "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "map_color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef"},
-    "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#5bc8ff", "map_color": "#5bc8ff", "dark_bg": "#061226", "light_bg": "#eef5ff"},
-    "flood":      {"icon": "🌊", "label": T["change_flood"],      "color": "#1e40af", "map_color": "#1e40af", "dark_bg": "#061425", "light_bg": "#eaf5ff"},
-    "desert":     {"icon": "🏜️", "label": T["change_desert"],     "color": "#c98a00", "map_color": "#e6b800", "dark_bg": "#1a1506", "light_bg": "#fdf6e3"},
-    "earthquake": {"icon": "🌍", "label": T["change_earthquake"], "color": "#9b59b6", "map_color": "#b06cd9", "dark_bg": "#160a22", "light_bg": "#f5eefc"},
-    "wetland":    {"icon": "🌿", "label": T["change_wetland"],    "color": "#27ae60", "map_color": "#3ed87a", "dark_bg": "#061a10", "light_bg": "#eafaf1"},
+    "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "map_color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef", "gradient": "linear-gradient(90deg, #FC3D21 0%, #ff8a5c 100%)"},
+    "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#5bc8ff", "map_color": "#5bc8ff", "dark_bg": "#061226", "light_bg": "#eef5ff", "gradient": "linear-gradient(90deg, #5bc8ff 0%, #a8e0ff 100%)"},
+    "flood":      {"icon": "🌊", "label": T["change_flood"],      "color": "#1e40af", "map_color": "#1e40af", "dark_bg": "#061425", "light_bg": "#eaf5ff", "gradient": "linear-gradient(90deg, #1e40af 0%, #3b82f6 100%)"},
+    "desert":     {"icon": "🏜️", "label": T["change_desert"],     "color": "#c98a00", "map_color": "#e6b800", "dark_bg": "#1a1506", "light_bg": "#fdf6e3", "gradient": "linear-gradient(90deg, #c98a00 0%, #f5d76e 100%)"},
+    "earthquake": {"icon": "🌍", "label": T["change_earthquake"], "color": "#9b59b6", "map_color": "#b06cd9", "dark_bg": "#160a22", "light_bg": "#f5eefc", "gradient": "linear-gradient(90deg, #9b59b6 0%, #d7a8f0 100%)"},
+    "wetland":    {"icon": "🌿", "label": T["change_wetland"],    "color": "#27ae60", "map_color": "#3ed87a", "dark_bg": "#061a10", "light_bg": "#eafaf1", "gradient": "linear-gradient(90deg, #27ae60 0%, #7dffb0 100%)"},
 }
+
 HOTSPOTS_BY_TYPE = {
     "fire": [("California, USA", 38.0, -120.0, 0.95, "Aug 2026"), ("Amazon, Brazil", -3.0, -60.0, 0.85, "Sep 2026"), ("Victoria, Australia", -37.0, 145.0, 0.80, "Jan 2026"), ("Siberia, Russia", 62.0, 105.0, 0.75, "Jul 2026")],
     "glacier": [("Antarctica", -75.0, 0.0, 0.95, "Sep 2026"), ("Greenland", 72.0, -40.0, 0.90, "Aug 2026"), ("Himalayas, Nepal", 28.0, 85.0, 0.85, "Sep 2026"), ("Alps, Switzerland", 46.5, 8.0, 0.70, "Jun 2026")],
@@ -69,7 +70,7 @@ accent_grad = active["gradient"] if active else "linear-gradient(90deg, #3a7bd5 
 
 if st.session_state["theme"] == "dark":
     bg_top = active["dark_bg"] if active else "#0a0e1a"; bg_bottom = "#0a0e1a"
-    text_main = "#ffffff"; text_muted = "#c8d0e0" # УВЕЛИЧЕН КОНТРАСТ
+    text_main = "#ffffff"; text_muted = "#c8d0e0"
     card_bg = "#131829"; card_border = "#2a3350"
 else:
     bg_top = active["light_bg"] if active else "#f7f9fc"; bg_bottom = "#f7f9fc"
