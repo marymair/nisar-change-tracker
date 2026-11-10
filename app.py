@@ -14,7 +14,7 @@ from PIL import Image
 from io import BytesIO
 from translations import TEXTS
 
-BACKEND_URL = "https://nisar-backend-production-feb6.up.railway.app"
+BACKEND_URL = "https://nisar-backend-330055874590.us-central1.run.app"
 
 st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️",
                    layout="wide", initial_sidebar_state="collapsed")
