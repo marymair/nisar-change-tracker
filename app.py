@@ -1,4 +1,5 @@
 """
+
 NISAR Surface Change Tracker — v7.0 (Final Stable)
 Fixed: KeyError gradient, all gradients restored, full translations.
 """
