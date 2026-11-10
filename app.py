@@ -1,6 +1,6 @@
 """
-NISAR Surface Change Tracker — v6.0 (Final)
-Fixed: translations, date limits, contrast, backend URL.
+NISAR Surface Change Tracker — v6.5 (Final Fix)
+Fixed: contrast, translations, date limits, backend URL.
 """
 import streamlit as st
 import folium
@@ -13,31 +13,20 @@ from PIL import Image
 from io import BytesIO
 from translations import TEXTS
 
-# НОВЫЙ АДРЕС БЭКЕНДА НА GOOGLE CLOUD
 BACKEND_URL = "https://nisar-backend-330055874590.us-central1.run.app"
 
-st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️",
-                   layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="NISAR Surface Change Tracker", page_icon="🛰️", layout="wide", initial_sidebar_state="collapsed")
 
-# ============================================================
 # SESSION STATE
-# ============================================================
 defaults = {
-    "lang": "en", "change_type": None,
-    "selected_lat": -75.0, "selected_lon": 0.0, "selected_address": "",
-    "scene_lat": None, "scene_lon": None, "scene_name": None,
-    "show_help": False, "job_id": None, "theme": "dark",
-    "availability_checked": False, "availability_count": None, "availability_scenes": [],
-    "onboarded": False,
-    "auto_loaded_for": None,
+    "lang": "en", "change_type": None, "selected_lat": -75.0, "selected_lon": 0.0, "selected_address": "",
+    "scene_lat": None, "scene_lon": None, "scene_name": None, "show_help": False, "job_id": None, "theme": "dark",
+    "availability_checked": False, "availability_count": None, "availability_scenes": [], "onboarded": False, "auto_loaded_for": None,
 }
 for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+    if k not in st.session_state: st.session_state[k] = v
 
-# ============================================================
 # CALLBACKS
-# ============================================================
 def toggle_theme(): st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
 def toggle_help(): st.session_state["show_help"] = not st.session_state["show_help"]
 def go_to_app(): st.session_state["onboarded"] = True
@@ -45,33 +34,18 @@ def go_to_landing(): st.session_state["onboarded"] = False
 
 def set_change_type(key):
     if st.session_state["change_type"] != key:
-        st.session_state["change_type"] = key
-        st.session_state["availability_checked"] = False
-        st.session_state["availability_count"] = None
-        st.session_state["availability_scenes"] = []
-        st.session_state["scene_lat"] = None
-        st.session_state["scene_lon"] = None
-        st.session_state["scene_name"] = None
-        st.session_state["job_id"] = None
-        st.session_state["auto_loaded_for"] = None
+        st.session_state["change_type"] = key; st.session_state["availability_checked"] = False; st.session_state["availability_count"] = None; st.session_state["availability_scenes"] = []
+        st.session_state["scene_lat"] = None; st.session_state["scene_lon"] = None; st.session_state["scene_name"] = None; st.session_state["job_id"] = None; st.session_state["auto_loaded_for"] = None
 
 def select_scene(name, lat, lon):
-    st.session_state["scene_name"] = name
-    st.session_state["scene_lat"] = lat
-    st.session_state["scene_lon"] = lon
+    st.session_state["scene_name"] = name; st.session_state["scene_lat"] = lat; st.session_state["scene_lon"] = lon
 
-# ============================================================
 # LANGUAGE
-# ============================================================
 lang_options = {"English": "en", "Русский": "ru", "Español": "es", "Français": "fr"}
-lang_name = st.selectbox("🌐 Language", list(lang_options.keys()),
-    index=list(lang_options.values()).index(st.session_state["lang"]),
-    key="lang_selector", label_visibility="collapsed")
+lang_name = st.selectbox("🌐 Language", list(lang_options.keys()), index=list(lang_options.values()).index(st.session_state["lang"]), key="lang_selector", label_visibility="collapsed")
 T = TEXTS[st.session_state["lang"]]
 
-# ============================================================
 # CHANGE TYPES
-# ============================================================
 CHANGE_TYPES = {
     "fire":       {"icon": "🔥", "label": T["change_fire"],       "color": "#FC3D21", "map_color": "#FC3D21", "dark_bg": "#1a0605", "light_bg": "#fff2ef"},
     "glacier":    {"icon": "❄️", "label": T["change_glacier"],    "color": "#5bc8ff", "map_color": "#5bc8ff", "dark_bg": "#061226", "light_bg": "#eef5ff"},
@@ -80,7 +54,6 @@ CHANGE_TYPES = {
     "earthquake": {"icon": "🌍", "label": T["change_earthquake"], "color": "#9b59b6", "map_color": "#b06cd9", "dark_bg": "#160a22", "light_bg": "#f5eefc"},
     "wetland":    {"icon": "🌿", "label": T["change_wetland"],    "color": "#27ae60", "map_color": "#3ed87a", "dark_bg": "#061a10", "light_bg": "#eafaf1"},
 }
-
 HOTSPOTS_BY_TYPE = {
     "fire": [("California, USA", 38.0, -120.0, 0.95, "Aug 2026"), ("Amazon, Brazil", -3.0, -60.0, 0.85, "Sep 2026"), ("Victoria, Australia", -37.0, 145.0, 0.80, "Jan 2026"), ("Siberia, Russia", 62.0, 105.0, 0.75, "Jul 2026")],
     "glacier": [("Antarctica", -75.0, 0.0, 0.95, "Sep 2026"), ("Greenland", 72.0, -40.0, 0.90, "Aug 2026"), ("Himalayas, Nepal", 28.0, 85.0, 0.85, "Sep 2026"), ("Alps, Switzerland", 46.5, 8.0, 0.70, "Jun 2026")],
@@ -96,16 +69,14 @@ accent_grad = active["gradient"] if active else "linear-gradient(90deg, #3a7bd5 
 
 if st.session_state["theme"] == "dark":
     bg_top = active["dark_bg"] if active else "#0a0e1a"; bg_bottom = "#0a0e1a"
-    text_main = "#ffffff"; text_muted = "#b0b8c8"
+    text_main = "#ffffff"; text_muted = "#c8d0e0" # УВЕЛИЧЕН КОНТРАСТ
     card_bg = "#131829"; card_border = "#2a3350"
 else:
     bg_top = active["light_bg"] if active else "#f7f9fc"; bg_bottom = "#f7f9fc"
     text_main = "#0a0e1a"; text_muted = "#5a6478"
     card_bg = "#ffffff"; card_border = "#d8dfeb"
 
-# ============================================================
 # CSS
-# ============================================================
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
@@ -139,9 +110,7 @@ button[kind="primary"] {{ background: {accent_grad} !important; color: white !im
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
 # LANDING
-# ============================================================
 if not st.session_state["onboarded"]:
     c1, c2 = st.columns([6, 1])
     with c2: st.button("☀️ Light" if st.session_state["theme"] == "dark" else "🌙 Dark", key="landing_theme_btn", on_click=toggle_theme)
@@ -178,9 +147,7 @@ if not st.session_state["onboarded"]:
     st.markdown(f'<div style="text-align:center; color:{text_muted}; font-size:13px;">{T["footer_built"]}<br>{T["footer_data"]}<br>{T["footer_credit"]}</div>', unsafe_allow_html=True)
     st.stop()
 
-# ============================================================
 # MAIN APP
-# ============================================================
 bc1, bc2, bc3 = st.columns([1, 5, 1])
 with bc1: st.button(f"← {T['back']}", key="back_btn", on_click=go_to_landing)
 with bc3: st.button("☀️" if st.session_state["theme"] == "dark" else "🌙", key="theme_toggle_btn", on_click=toggle_theme)
@@ -209,15 +176,13 @@ else:
     st.info(T["choose_type_to_continue"])
     st.stop()
 
-# STEP 2 - DATE (ОГРАНИЧЕНИЕ 2025-07-30)
+# STEP 2 - DATE
 st.markdown(f'<div class="section-header">2. {T["date_range"]}</div>', unsafe_allow_html=True)
 col_d1, col_d2 = st.columns(2)
-with col_d1:
-    start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"), min_value=pd.Timestamp("2025-07-30"))
-with col_d2:
-    end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"), min_value=pd.Timestamp("2025-07-30"))
+with col_d1: start_date = st.date_input(T["from"], value=pd.Timestamp("2026-09-01"), min_value=pd.Timestamp("2025-07-30"))
+with col_d2: end_date = st.date_input(T["to"], value=pd.Timestamp("2026-09-28"), min_value=pd.Timestamp("2025-07-30"))
 
-# AUTO-LOAD scenes
+# AUTO-LOAD
 hotspots = HOTSPOTS_BY_TYPE[st.session_state["change_type"]]
 current_key = f"{st.session_state['change_type']}_{start_date}_{end_date}"
 if st.session_state.get("auto_loaded_for") != current_key:
@@ -229,26 +194,21 @@ if st.session_state.get("auto_loaded_for") != current_key:
             st.session_state["availability_scenes"] = d.get("scenes", [])
             st.session_state["availability_checked"] = True
             st.session_state["auto_loaded_for"] = current_key
-        except Exception as e:
-            st.error(f"❌ {e}")
+        except Exception as e: st.error(f"❌ {e}")
 
 # STEP 3 - MAP
 st.markdown(f'<div class="section-header">3. {T["select_location"]}</div>', unsafe_allow_html=True)
 m = folium.Map(location=[20, 0], zoom_start=2, min_zoom=2, max_zoom=10, tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr="NASA Earth Imagery", control_scale=True, world_copy_jump=False, no_wrap=True)
-
 for entry in hotspots:
     name, hlat, hlon, intensity, date = entry
     radius = 10 + int(intensity * 10)
     tooltip_html = f"<b>{name}</b><br>{active['label']}<br>{date} · {int(intensity*100)}%"
     folium.CircleMarker(location=[hlat, hlon], radius=radius, color=active["map_color"], fill=True, fill_color=active["map_color"], fill_opacity=0.7, weight=2, tooltip=folium.Tooltip(tooltip_html, sticky=True)).add_to(m)
-
 folium.Marker(location=[st.session_state["selected_lat"], st.session_state["selected_lon"]], tooltip="Selected point", icon=folium.Icon(color="red", icon="crosshair", prefix="fa")).add_to(m)
-
 if st.session_state.get("scene_lat") is not None and st.session_state.get("scene_name"):
     folium.Marker(location=[st.session_state["scene_lat"] + 1.5, st.session_state["scene_lon"] + 1.5], tooltip=f"Scene", icon=folium.Icon(color="orange", icon="satellite", prefix="fa")).add_to(m)
 
 map_data = st_folium(m, height=500, use_container_width=True, key="nisar_map")
-
 if map_data and map_data.get("last_clicked"):
     new_lat = map_data["last_clicked"]["lat"]; new_lon = map_data["last_clicked"]["lng"]
     if abs(new_lat - st.session_state["selected_lat"]) > 0.001 or abs(new_lon - st.session_state["selected_lon"]) > 0.001:
@@ -261,7 +221,7 @@ if map_data and map_data.get("last_clicked"):
 
 st.markdown(f'<div class="info-box"><b>📍 {T["selected"]}:</b> {st.session_state["selected_lat"]:.3f}, {st.session_state["selected_lon"]:.3f}<br><i>{st.session_state.get("selected_address", "")}</i></div>', unsafe_allow_html=True)
 
-# STEP 4 - SCENE LIST
+# STEP 4 - SCENES
 st.markdown(f'<div class="section-header">4. {T.get("scenes_found", "Scenes")}</div>', unsafe_allow_html=True)
 if st.session_state["availability_checked"]:
     count = st.session_state["availability_count"]
@@ -271,7 +231,6 @@ if st.session_state["availability_checked"]:
         for i, s in enumerate(st.session_state["availability_scenes"][:10]):
             is_sel = st.session_state.get("scene_name") == s.get("name")
             st.button(f"{'🎯 ' if is_sel else ''}{s.get('level')} · {s.get('name')[:60]}", key=f"sc_{i}", use_container_width=True, type="primary" if is_sel else "secondary", on_click=select_scene, args=(s.get("name"), st.session_state["selected_lat"], st.session_state["selected_lon"]))
-
         st.markdown(f'<div class="section-header">5. {T["analyze"]}</div>', unsafe_allow_html=True)
         if st.button(f"▶  {T['analyze']}", use_container_width=True, key="analyze_btn", type="primary"):
             with st.spinner(f"🔎 {T['searching']}..."):
@@ -291,8 +250,7 @@ if st.session_state["job_id"]:
     for i in range(60):
         try:
             r = requests.get(f"{BACKEND_URL}/status/{job_id}", timeout=10); d = r.json(); status = d.get("status", "unknown")
-            if status == "processing":
-                progress_bar.progress(min((i + 1) * 2, 95)); status_text.text(f"⏳ {d.get('scene_name', '')}"); time.sleep(5)
+            if status == "processing": progress_bar.progress(min((i + 1) * 2, 95)); status_text.text(f"⏳ {d.get('scene_name', '')}"); time.sleep(5)
             elif status == "done": progress_bar.progress(100); status_text.text("✅"); break
             elif status == "error": st.error(f"❌ {d.get('error')}"); break
         except Exception: time.sleep(5)
